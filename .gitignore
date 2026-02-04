@@ -1,0 +1,113 @@
+# ========================
+# OS Generated Files
+# ========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ========================
+# IDE and Editor Files
+# ========================
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+.buildpath
+
+# ========================
+# Android
+# ========================
+# Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+
+# Local configuration file
+android/local.properties
+
+# Signing files
+android/*.jks
+android/*.keystore
+
+# APK/AAB files
+*.apk
+*.aab
+
+# Android Studio Navigation editor temp files
+android/.navigation/
+
+# Android Studio captures folder
+android/captures/
+
+# Proguard folder
+android/proguard/
+
+# Log Files
+android/*.log
+
+# ========================
+# PHP / Composer
+# ========================
+composer.phar
+backend/vendor/
+backend/node_modules/
+backend/.env
+backend/.env.backup
+backend/.env.local
+backend/.env.*.local
+backend/.phpunit.result.cache
+backend/storage/*.key
+backend/public/hot
+backend/public/storage
+backend/Homestead.json
+backend/Homestead.yaml
+backend/npm-debug.log
+backend/yarn-error.log
+backend/docker-compose.override.yml
+
+# Laravel specific
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+backend/bootstrap/cache/*
+
+# ========================
+# Logs
+# ========================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ========================
+# Dependencies
+# ========================
+node_modules/
+vendor/
+
+# ========================
+# Build outputs
+# ========================
+build/
+dist/
+out/
+
+# ========================
+# Temporary files
+# ========================
+*.tmp
+*.temp
+*.bak
+*.cache

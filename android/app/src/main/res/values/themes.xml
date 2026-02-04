@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.KnowledgeBaseSOPViewer" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/brand_blue</item>
+        <item name="colorPrimaryDark">@color/brand_blue</item>
+        <item name="colorAccent">@color/brand_teal</item>
+        <item name="android:windowBackground">@color/bg_light</item>
+    </style>
+</resources>

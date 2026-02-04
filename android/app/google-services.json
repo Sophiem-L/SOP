@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "473021694810",
+    "project_id": "sop-project-d7f89",
+    "storage_bucket": "sop-project-d7f89.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:473021694810:android:aa1c8aa343aabbe7c02963",
+        "android_client_info": {
+          "package_name": "com.knowledgebase.sopviewer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjJIeCh59g2uPTvjf05U_JA9EyA34VPAs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:473021694810:android:ce54a03121635e0bc02963",
+        "android_client_info": {
+          "package_name": "com.knowledgebase.sopviewer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjJIeCh59g2uPTvjf05U_JA9EyA34VPAs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
