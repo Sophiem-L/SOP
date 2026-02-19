@@ -9,13 +9,25 @@ use App\Models\Sop;
 
 class ApiController extends Controller
 {
-    public function getArticles()
+    public function getArticles(Request $request)
     {
-        return response()->json(Article::all());
+        $query = Article::query();
+        if ($request->has('q')) {
+            $search = $request->query('q');
+            $query->where('title', 'like', '%' . $search . '%')
+                ->orWhere('content', 'like', '%' . $search . '%');
+        }
+        return response()->json($query->get());
     }
 
-    public function getSops()
+    public function getSops(Request $request)
     {
-        return response()->json(Sop::all());
+        $query = Sop::query();
+        if ($request->has('q')) {
+            $search = $request->query('q');
+            $query->where('title', 'like', '%' . $search . '%')
+                ->orWhere('description', 'like', '%' . $search . '%');
+        }
+        return response()->json($query->get());
     }
 }

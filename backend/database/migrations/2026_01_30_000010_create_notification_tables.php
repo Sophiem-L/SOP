@@ -8,6 +8,9 @@ class CreateNotificationTables extends Migration
 {
     public function up()
     {
+        Schema::dropIfExists('user_notifications');
+        Schema::dropIfExists('notifications');
+
         Schema::create('notifications', function (Blueprint $table) {
             $table->id();
             $table->string('title');

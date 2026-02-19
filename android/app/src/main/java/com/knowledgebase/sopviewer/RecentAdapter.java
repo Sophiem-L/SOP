@@ -18,6 +18,8 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
 
     private List<RecentDoc> recentDocs;
     private String token;
+    private int colorBrandBlue = -1;
+    private int colorTextSecondary = -1;
 
     public RecentAdapter(List<RecentDoc> recentDocs, String token) {
         this.recentDocs = recentDocs;
@@ -74,17 +76,33 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
                 }
             });
         });
+
+        if (holder.btnView != null) {
+            holder.btnView.setOnClickListener(v -> {
+                android.content.Intent intent = new android.content.Intent(holder.itemView.getContext(),
+                        DocumentDetailActivity.class);
+                intent.putExtra("id", doc.getId());
+                intent.putExtra("title", doc.getTitle());
+                intent.putExtra("description", doc.getDescription());
+                intent.putExtra("date", doc.getDate());
+                holder.itemView.getContext().startActivity(intent);
+            });
+        }
     }
 
     private void updateFavoriteIcon(ViewHolder holder, RecentDoc doc) {
+        // Cache colors on first use to avoid repeated resource lookups
+        if (colorBrandBlue == -1) {
+            colorBrandBlue = holder.itemView.getContext().getResources().getColor(R.color.brand_blue);
+            colorTextSecondary = holder.itemView.getContext().getResources().getColor(R.color.text_secondary);
+        }
+
         if (doc.isFavorite()) {
             holder.btnBookmark.setImageResource(R.drawable.ic_bookmark); // Filled
-            holder.btnBookmark.setImageTintList(ColorStateList.valueOf(
-                    holder.itemView.getContext().getResources().getColor(R.color.brand_blue)));
+            holder.btnBookmark.setImageTintList(ColorStateList.valueOf(colorBrandBlue));
         } else {
             holder.btnBookmark.setImageResource(R.drawable.ic_bookmark_border); // Outlined
-            holder.btnBookmark.setImageTintList(ColorStateList.valueOf(
-                    holder.itemView.getContext().getResources().getColor(R.color.text_secondary)));
+            holder.btnBookmark.setImageTintList(ColorStateList.valueOf(colorTextSecondary));
         }
     }
 
@@ -94,7 +112,7 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        ImageView image, btnBookmark;
+        ImageView image, btnBookmark, btnView;
         TextView title, description, date;
 
         public ViewHolder(@NonNull View itemView) {
@@ -104,6 +122,7 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
             description = itemView.findViewById(R.id.docDescription);
             date = itemView.findViewById(R.id.docType);
             btnBookmark = itemView.findViewById(R.id.btnBookmark);
+            btnView = itemView.findViewById(R.id.btnView);
         }
     }
 }

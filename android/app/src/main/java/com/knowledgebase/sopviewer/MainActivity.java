@@ -26,25 +26,47 @@ public class MainActivity extends AppCompatActivity {
     private RecentAdapter recentAdapter;
     private FolderAdapter folderAdapter;
     private FirebaseAuth mAuth;
+    private boolean isDataLoaded = false; // Prevent unnecessary refetches
+    private List<RecentDoc> recentDocs = new ArrayList<>();
+    private List<FolderDoc> folders = new ArrayList<>();
 
-        private PagerSnapHelper snapHelper = new PagerSnapHelper();
+    private PagerSnapHelper snapHelper = new PagerSnapHelper();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mAuth = FirebaseAuth.getInstance();
-        FirebaseUser currentUser = mAuth.getCurrentUser();
+        try {
+            mAuth = FirebaseAuth.getInstance();
+            FirebaseUser currentUser = mAuth.getCurrentUser();
 
-        if (currentUser == null) {
-            startActivity(new Intent(MainActivity.this, LoginActivity.class));
+            if (currentUser == null) {
+                // User not logged in, redirect to LoginActivity
+                Intent intent = new Intent(MainActivity.this, LoginActivity.class);
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+                finish();
+                return;
+            }
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "Firebase error: " + e.getMessage());
+            Toast.makeText(this, "Firebase initialization failed", Toast.LENGTH_SHORT).show();
+            // Redirect to login if Firebase fails
+            Intent intent = new Intent(MainActivity.this, LoginActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
             finish();
             return;
         }
 
         recyclerRecent = findViewById(R.id.recyclerRecent);
         recyclerFolders = findViewById(R.id.recyclerFolders);
+
+        // Set layout managers once (not on every update)
+        recyclerRecent.setLayoutManager(
+                new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        recyclerFolders.setLayoutManager(new LinearLayoutManager(this));
 
         // Attach SnapHelper
         snapHelper.attachToRecyclerView(recyclerRecent);
@@ -55,10 +77,30 @@ public class MainActivity extends AppCompatActivity {
         bottomNav.setOnNavigationItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.navigation_bookmarks) {
-                startActivity(new Intent(MainActivity.this, BookmarksActivity.class));
+                Intent intent = new Intent(MainActivity.this, BookmarksActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
                 overridePendingTransition(0, 0);
                 return true;
             } else if (id == R.id.navigation_home) {
+                return true;
+            } else if (id == R.id.navigation_profile) {
+                Intent intent = new Intent(MainActivity.this, ProfileActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+                overridePendingTransition(0, 0);
+                return true;
+            } else if (id == R.id.navigation_search) {
+                Intent intent = new Intent(MainActivity.this, SearchActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+                overridePendingTransition(0, 0);
+                return true;
+            } else if (id == R.id.navigation_notifications) {
+                Intent intent = new Intent(MainActivity.this, NotificationsActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+                overridePendingTransition(0, 0);
                 return true;
             }
             return false;
@@ -74,7 +116,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        fetchDataFromBackend();
+        // Only fetch if not already loaded (saves unnecessary API calls)
+        if (!isDataLoaded) {
+            fetchDataFromBackend();
+        }
     }
 
     private void fetchDataFromBackend() {
@@ -83,18 +128,33 @@ public class MainActivity extends AppCompatActivity {
             user.getIdToken(false).addOnCompleteListener(task -> {
                 if (task.isSuccessful()) {
                     String idToken = "Bearer " + task.getResult().getToken();
+                    // Load data in parallel (not sequential)
                     loadRecentContent(idToken);
                     loadCategories(idToken);
+                    isDataLoaded = true;
                 }
             });
         }
     }
 
-    private void loadRecentContent(String token) {
-        final List<RecentDoc> recentDocs = new ArrayList<>();
+    // Public method to force refresh (can be called from pull-to-refresh)
+    public void refreshData() {
+        isDataLoaded = false;
+        recentDocs.clear();
+        folders.clear();
+        DataCache.getInstance().clearAll(); // Clear cache on manual refresh
+        fetchDataFromBackend();
+    }
 
-        // Fetch new documents first
-        RetrofitClient.getApiService().getDocuments(token).enqueue(new Callback<List<Document>>() {
+    private void loadRecentContent(String token) {
+        recentDocs.clear();
+
+        // Fetch documents and articles in parallel for better performance
+        final int[] completedCalls = {0};
+        final int totalCalls = 2;
+
+        // Fetch documents
+        RetrofitClient.getApiService().getDocuments(token, null).enqueue(new Callback<List<Document>>() {
             @Override
             public void onResponse(Call<List<Document>> call, Response<List<Document>> response) {
                 if (response.isSuccessful() && response.body() != null) {
@@ -109,24 +169,26 @@ public class MainActivity extends AppCompatActivity {
                                 description,
                                 date,
                                 R.drawable.file_logo,
-                                doc.getIsFavorite() == 1));
+                                doc.getIsFavorite() > 0));
                     }
-                } else {
-                    Toast.makeText(MainActivity.this, "Docs Error: " + response.code(), Toast.LENGTH_SHORT).show();
                 }
-                // Now fetch old articles
-                loadOldArticles(recentDocs, token);
+                completedCalls[0]++;
+                if (completedCalls[0] == totalCalls) {
+                    updateRecentAdapter(token);
+                }
             }
 
             @Override
             public void onFailure(Call<List<Document>> call, Throwable t) {
-                loadOldArticles(recentDocs, token);
+                completedCalls[0]++;
+                if (completedCalls[0] == totalCalls) {
+                    updateRecentAdapter(token);
+                }
             }
         });
-    }
 
-    private void loadOldArticles(final List<RecentDoc> recentDocs, final String token) {
-        RetrofitClient.getApiService().getArticles(token).enqueue(new Callback<List<Article>>() {
+        // Fetch articles in parallel
+        RetrofitClient.getApiService().getArticles(token, null).enqueue(new Callback<List<Article>>() {
             @Override
             public void onResponse(Call<List<Article>> call, Response<List<Article>> response) {
                 if (response.isSuccessful() && response.body() != null) {
@@ -139,77 +201,128 @@ public class MainActivity extends AppCompatActivity {
                                 R.drawable.file_logo,
                                 false));
                     }
-                } else {
-                    Toast.makeText(MainActivity.this, "Articles Error: " + response.code(), Toast.LENGTH_SHORT).show();
                 }
-                updateRecentAdapter(recentDocs, token);
+                completedCalls[0]++;
+                if (completedCalls[0] == totalCalls) {
+                    updateRecentAdapter(token);
+                }
             }
 
             @Override
             public void onFailure(Call<List<Article>> call, Throwable t) {
-                updateRecentAdapter(recentDocs, token);
+                completedCalls[0]++;
+                if (completedCalls[0] == totalCalls) {
+                    updateRecentAdapter(token);
+                }
             }
         });
     }
 
-    private void updateRecentAdapter(List<RecentDoc> recentDocs, String token) {
-        recentAdapter = new RecentAdapter(recentDocs, token);
-        recyclerRecent.setLayoutManager(
-                new LinearLayoutManager(MainActivity.this, LinearLayoutManager.HORIZONTAL, false));
-        recyclerRecent.setAdapter(recentAdapter);
-
-        // Auto scroll removed - users can now scroll manually
+    private void updateRecentAdapter(String token) {
+        if (recentAdapter == null) {
+            // Create adapter only once
+            recentAdapter = new RecentAdapter(recentDocs, token);
+            recyclerRecent.setAdapter(recentAdapter);
+        } else {
+            // Update existing adapter (more efficient)
+            recentAdapter.notifyDataSetChanged();
+        }
     }
 
-    
     @Override
     protected void onPause() {
         super.onPause();
     }
 
     private void loadCategories(String token) {
+        android.util.Log.d("MainActivity", "Loading categories with token...");
+
+        // Check cache first
+        List<Category> cachedCategories = DataCache.getInstance().get(DataCache.KEY_MAIN_CATEGORIES);
+        if (cachedCategories != null) {
+            android.util.Log.d("MainActivity", "Using cached categories (" + cachedCategories.size() + ")");
+            processCategoriesData(cachedCategories);
+            return;
+        }
+
         RetrofitClient.getApiService().getCategories(token).enqueue(new Callback<List<Category>>() {
             @Override
             public void onResponse(Call<List<Category>> call, Response<List<Category>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    List<FolderDoc> folders = new ArrayList<>();
-                    int[] colors = {
-                            R.color.bg_purple_light,
-                            R.color.bg_pink_light,
-                            R.color.bg_green_light,
-                            R.color.bg_orange_light
-                    };
-                    int i = 0;
-                    for (Category cat : response.body()) {
-                        String lastEdited = cat.getUpdatedAt() != null ? cat.getUpdatedAt().substring(0, 10) : "N/A";
-                        folders.add(new FolderDoc(
-                                cat.getName(),
-                                cat.getDocumentsCount(),
-                                "Last edited: " + lastEdited,
-                                colors[i % colors.length]));
-                        i++;
-                    }
+                    android.util.Log.d("MainActivity", "Categories received: " + response.body().size());
 
-                    // Add static ones only if empty to show the design intent
-                    if (folders.isEmpty()) {
-                        folders.add(new FolderDoc("Policies", 32, "Last edited Feb 01, 2023", R.color.bg_purple_light));
-                        folders.add(
-                                new FolderDoc("HR Document", 10, "Last edited Mar 06, 2023", R.color.bg_pink_light));
-                        folders.add(new FolderDoc("Security", 5, "Last edited Jan 25, 2023", R.color.bg_green_light));
-                    }
+                    // Cache the response
+                    DataCache.getInstance().put(DataCache.KEY_MAIN_CATEGORIES, response.body());
 
-                    folderAdapter = new FolderAdapter(folders, MainActivity.this);
-                    recyclerFolders.setLayoutManager(new LinearLayoutManager(MainActivity.this));
-                    recyclerFolders.setAdapter(folderAdapter);
+                    processCategoriesData(response.body());
                 } else {
+                    android.util.Log.e("MainActivity", "Cats Error Response: " + response.code());
                     Toast.makeText(MainActivity.this, "Cats Error: " + response.code(), Toast.LENGTH_SHORT).show();
                 }
             }
 
             @Override
             public void onFailure(Call<List<Category>> call, Throwable t) {
+                android.util.Log.e("MainActivity", "Failed to load categories: " + t.getMessage());
                 Toast.makeText(MainActivity.this, "Failed to load categories", Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    private void processCategoriesData(List<Category> categories) {
+        try {
+            folders.clear();
+            int[] colors = {
+                    R.color.bg_purple_light, // Policies
+                    R.color.bg_pink_light, // HR Document
+                    R.color.bg_green_light, // Security
+                    R.color.bg_orange_light, // Finance
+                    R.color.bg_blue_light // Management
+            };
+            int i = 0;
+            for (Category cat : categories) {
+                String updatedAt = cat.getUpdatedAt();
+                String lastEdited = "N/A";
+                if (updatedAt != null && updatedAt.length() >= 10) {
+                    lastEdited = updatedAt.substring(0, 10);
+                }
+
+                folders.add(new FolderDoc(
+                        cat.getName(),
+                        cat.getDocumentsCount(),
+                        "Last edited: " + lastEdited,
+                        colors[i % colors.length]));
+                i++;
+            }
+
+            if (folders.isEmpty()) {
+                folders.add(
+                        new FolderDoc("Policies", 32, "Last edited Feb 01, 2023", R.color.bg_purple_light));
+                folders.add(new FolderDoc("HR Document", 10, "Last edited Mar 06, 2023",
+                        R.color.bg_pink_light));
+                folders.add(
+                        new FolderDoc("Security", 5, "Last edited Jan 25, 2023", R.color.bg_green_light));
+                folders.add(
+                        new FolderDoc("Finance", 8, "Last edited Jan 15, 2023", R.color.bg_orange_light));
+                folders.add(
+                        new FolderDoc("Management", 12, "Last edited Feb 10, 2023", R.color.bg_blue_light));
+            }
+
+            updateFoldersAdapter();
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "Error parsing categories: " + e.getMessage());
+            Toast.makeText(MainActivity.this, "Data Error: Categories", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void updateFoldersAdapter() {
+        if (folderAdapter == null) {
+            // Create adapter only once
+            folderAdapter = new FolderAdapter(folders, MainActivity.this);
+            recyclerFolders.setAdapter(folderAdapter);
+        } else {
+            // Update existing adapter (more efficient)
+            folderAdapter.notifyDataSetChanged();
+        }
     }
 }

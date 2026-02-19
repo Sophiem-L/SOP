@@ -10,9 +10,13 @@
     <color name="text_secondary">#888888</color>
     <color name="input_border">#E0E0E0</color>
     <color name="bg_light">#F5F5F7</color>
-    <color name="blue_accent">#2D9CDB</color>
-    <color name="bg_purple_light">#F5F6FD</color>
-    <color name="bg_pink_light">#FDF5F6</color>
-    <color name="bg_green_light">#F1FBF9</color>
-    <color name="bg_orange_light">#FFF6F2</color>
+    <color name="bg_blue_light">#F0F7FF</color>
+    <color name="bg_purple_light">#F5F4FF</color>
+    <color name="bg_pink_light">#FFF1F3</color>
+    <color name="bg_green_light">#E8FAF5</color>
+    <color name="bg_orange_light">#FFF6E9</color>
+    <color name="brand_orange">#FF9800</color>
+    <color name="badge_salmon">#F2966E</color>
+    <color name="logout_red">#E53935</color>
+    <color name="shield_lavender">#7E8CE0</color>
 </resources>

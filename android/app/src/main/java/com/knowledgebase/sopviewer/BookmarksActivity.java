@@ -30,6 +30,15 @@ public class BookmarksActivity extends AppCompatActivity {
         setContentView(R.layout.activity_bookmarks);
 
         mAuth = FirebaseAuth.getInstance();
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+
+        // Check if user is authenticated
+        if (currentUser == null) {
+            startActivity(new Intent(BookmarksActivity.this, WelcomeActivity.class));
+            finish();
+            return;
+        }
+
         recyclerBookmarks = findViewById(R.id.recyclerBookmarks);
         emptyState = findViewById(R.id.emptyState);
 
@@ -38,14 +47,32 @@ public class BookmarksActivity extends AppCompatActivity {
         bottomNav.setOnNavigationItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.navigation_home) {
-                startActivity(new Intent(this, MainActivity.class));
+                Intent intent = new Intent(this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
                 overridePendingTransition(0, 0);
-                finish();
                 return true;
             } else if (id == R.id.navigation_bookmarks) {
                 return true;
+            } else if (id == R.id.navigation_profile) {
+                Intent intent = new Intent(this, ProfileActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+                overridePendingTransition(0, 0);
+                return true;
+            } else if (id == R.id.navigation_search) {
+                Intent intent = new Intent(this, SearchActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+                overridePendingTransition(0, 0);
+                return true;
+            } else if (id == R.id.navigation_notifications) {
+                Intent intent = new Intent(this, NotificationsActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+                overridePendingTransition(0, 0);
+                return true;
             }
-            // Add other navigation handling if needed
             return false;
         });
 
@@ -53,6 +80,14 @@ public class BookmarksActivity extends AppCompatActivity {
     }
 
     private void fetchBookmarks() {
+        // Check cache first
+        List<RecentDoc> cachedBookmarks = DataCache.getInstance().get(DataCache.KEY_BOOKMARKS);
+        if (cachedBookmarks != null) {
+            android.util.Log.d("BookmarksActivity", "Using cached bookmarks (" + cachedBookmarks.size() + ")");
+            setupRecyclerView(cachedBookmarks, "cached");
+            return;
+        }
+
         FirebaseUser user = mAuth.getCurrentUser();
         if (user != null) {
             user.getIdToken(false).addOnCompleteListener(task -> {
@@ -75,8 +110,12 @@ public class BookmarksActivity extends AppCompatActivity {
                                             description,
                                             date,
                                             R.drawable.file_logo,
-                                            true));
+                                            doc.getIsFavorite() > 0));
                                 }
+
+                                // Cache the bookmarks
+                                DataCache.getInstance().put(DataCache.KEY_BOOKMARKS, bookmarkDocs);
+
                                 setupRecyclerView(bookmarkDocs, task.getResult().getToken());
                             }
                         }

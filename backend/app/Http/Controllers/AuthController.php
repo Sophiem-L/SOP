@@ -93,9 +93,14 @@ class AuthController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
+        // Only return essential data for faster response
         return response()->json([
             'message' => 'Logged in successfully',
-            'user' => $user->load('roles', 'department', 'profile'),
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
         ]);
     }
 }

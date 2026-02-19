@@ -9,13 +9,20 @@
         android:label="Knowledge Base &amp; SOP Viewer"
         android:roundIcon="@drawable/app_logo"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="true"
-        android:theme="@style/Theme.KnowledgeBaseSOPViewer">
+        android:theme="@style/Theme.KnowledgeBaseSOPViewer"
+        android:usesCleartextTraffic="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.MyApplication" />
+
         <activity
             android:name=".WelcomeActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
@@ -23,14 +30,27 @@
             android:name=".LoginActivity"
             android:exported="false" />
         <activity
-            android:name=".MainActivity"
-            android:exported="false" />
-        <activity
             android:name=".CreateDocumentActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".BookmarksActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ProfileActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SearchActivity"
+            android:exported="false" />
+        <activity
+            android:name=".DocumentDetailActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SubmitSuggestionActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".NotificationsActivity"
             android:exported="false" />
     </application>
 

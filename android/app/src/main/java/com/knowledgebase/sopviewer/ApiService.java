@@ -17,7 +17,7 @@ public interface ApiService {
     Call<LoginResponse> login(@Header("Authorization") String token);
 
     @GET("api/documents")
-    Call<List<Document>> getDocuments(@Header("Authorization") String token);
+    Call<List<Document>> getDocuments(@Header("Authorization") String token, @retrofit2.http.Query("q") String query);
 
     @POST("api/documents/{id}/favorite")
     Call<Void> toggleFavorite(@Path("id") int id, @Header("Authorization") String token);
@@ -26,10 +26,10 @@ public interface ApiService {
     Call<List<Document>> getFavorites(@Header("Authorization") String token);
 
     @GET("api/articles")
-    Call<List<Article>> getArticles(@Header("Authorization") String token);
+    Call<List<Article>> getArticles(@Header("Authorization") String token, @retrofit2.http.Query("q") String query);
 
     @GET("api/sops")
-    Call<List<Sop>> getSops(@Header("Authorization") String token);
+    Call<List<Sop>> getSops(@Header("Authorization") String token, @retrofit2.http.Query("q") String query);
 
     @GET("api/categories")
     Call<List<Category>> getCategories(@Header("Authorization") String token);

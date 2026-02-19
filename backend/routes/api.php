@@ -35,12 +35,12 @@ Route::middleware(['firebase.auth'])->group(function () {
     });
 });
 
-Route::post('/documents/{id}/favorite', [App\Http\Controllers\DocumentController::class, 'toggleFavorite']);
-Route::get('/documents/favorites', [App\Http\Controllers\DocumentController::class, 'favorites']);
-
+// Public routes (no Firebase auth required)
 Route::get('/categories', [App\Http\Controllers\DocumentController::class, 'categories']);
 Route::get('/documents', [App\Http\Controllers\DocumentController::class, 'index']);
 Route::post('/documents', [App\Http\Controllers\DocumentController::class, 'store']);
+Route::get('/documents/favorites', [App\Http\Controllers\DocumentController::class, 'favorites']);
+Route::post('/documents/{id}/favorite', [App\Http\Controllers\DocumentController::class, 'toggleFavorite']);
 
 // Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 //     return $request->user();

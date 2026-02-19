@@ -14,6 +14,11 @@ class DocumentController extends Controller
 {
     public function store(Request $request)
     {
+        // Handle empty string from multipart form
+        if ($request->has('category_id') && $request->category_id === '') {
+            $request->merge(['category_id' => null]);
+        }
+
         $request->validate([
             'title' => 'required|string|max:100',
             'description' => 'nullable|string',
@@ -63,23 +68,52 @@ class DocumentController extends Controller
 
     public function categories()
     {
-        return response()->json(Category::withCount('documents')->get());
+        // Cache categories for 5 minutes to reduce database load
+        $categories = \Illuminate\Support\Facades\Cache::remember('categories_with_count', 300, function () {
+            return Category::select('id', 'name', 'updated_at')
+                ->withCount('documents')
+                ->get();
+        });
+
+        \Log::info('Categories fetched: ' . $categories->count());
+        return response()->json($categories);
     }
 
     public function index(Request $request)
     {
-        $userId = $request->user() ? $request->user()->id : null;
+        // For now, we'll use a fallback user ID since Firebase auth is not configured
+        // In production, this should be properly authenticated
+        $userId = $request->user() ? $request->user()->id : 1;
 
-        $documents = Document::with(['category', 'versions'])
-            ->when($userId, function ($query) use ($userId) {
-                $query->addSelect([
-                    'is_favorite' => Favorite::selectRaw('count(*)')
-                        ->whereColumn('document_id', 'documents.id')
-                        ->where('user_id', $userId)
-                        ->limit(1)
-                ]);
+        // Optimized query with pagination
+        $query = Document::select([
+            'documents.id',
+            'documents.title',
+            'documents.description',
+            'documents.category_id',
+            'documents.updated_at'
+        ]);
+
+        if ($request->has('q')) {
+            $search = $request->query('q');
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', '%' . $search . '%')
+                    ->orWhere('description', 'like', '%' . $search . '%');
+            });
+        }
+
+        // Use LEFT JOIN instead of subquery for better performance
+        $documents = $query
+            ->leftJoin('favorites', function ($join) use ($userId) {
+                $join->on('favorites.document_id', '=', 'documents.id')
+                    ->where('favorites.user_id', '=', $userId);
             })
-            ->latest()
+            ->addSelect([
+                DB::raw('CASE WHEN favorites.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite')
+            ])
+            ->with(['category:id,name', 'versions:id,document_id,file_url,file_type,version_number'])
+            ->latest('documents.updated_at')
+            ->limit(50) // Limit to 50 most recent documents
             ->get();
 
         return response()->json($documents);
@@ -113,17 +147,19 @@ class DocumentController extends Controller
         // In production, this should be properly authenticated
         $userId = $request->user() ? $request->user()->id : 1;
 
-        $documents = Document::with(['category', 'versions'])
-            ->whereHas('favorites', function ($query) use ($userId) {
-                $query->where('user_id', $userId);
-            })
-            ->addSelect([
-                'is_favorite' => Favorite::selectRaw('count(*)')
-                    ->whereColumn('document_id', 'documents.id')
-                    ->where('user_id', $userId)
-                    ->limit(1)
-            ])
-            ->latest()
+        // Optimized favorites query with JOIN
+        $documents = Document::select([
+            'documents.id',
+            'documents.title',
+            'documents.description',
+            'documents.category_id',
+            'documents.updated_at',
+            DB::raw('1 as is_favorite')
+        ])
+            ->join('favorites', 'favorites.document_id', '=', 'documents.id')
+            ->where('favorites.user_id', $userId)
+            ->with(['category:id,name', 'versions:id,document_id,file_url,file_type,version_number'])
+            ->latest('documents.updated_at')
             ->get();
 
         return response()->json($documents);

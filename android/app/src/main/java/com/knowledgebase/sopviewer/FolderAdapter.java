@@ -36,7 +36,7 @@ public class FolderAdapter extends RecyclerView.Adapter<FolderAdapter.ViewHolder
         holder.date.setText("Last edited on " + folder.getLastEdited());
 
         // Dynamically tint the background
-        holder.itemView
+        holder.container
                 .setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, folder.getColorResId())));
     }
 
@@ -47,9 +47,11 @@ public class FolderAdapter extends RecyclerView.Adapter<FolderAdapter.ViewHolder
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
         TextView title, count, date;
+        View container;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
+            container = itemView.findViewById(R.id.container);
             title = itemView.findViewById(R.id.folderName);
             count = itemView.findViewById(R.id.docCount);
             date = itemView.findViewById(R.id.lastEdited);

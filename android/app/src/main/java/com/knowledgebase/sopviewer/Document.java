@@ -44,6 +44,11 @@ public class Document {
         this.is_favorite = is_favorite;
     }
 
+    // Add a method to handle string conversion from JSON
+    public void setIsFavoriteFromString(String is_favorite_str) {
+        this.is_favorite = is_favorite_str != null && !is_favorite_str.equals("0") ? 1 : 0;
+    }
+
     public List<DocumentVersion> getVersions() {
         return versions;
     }

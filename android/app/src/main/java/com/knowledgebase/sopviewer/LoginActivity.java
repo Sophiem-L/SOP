@@ -1,5 +1,6 @@
 package com.knowledgebase.sopviewer;
 
+import android.app.ProgressDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -19,6 +20,7 @@ public class LoginActivity extends AppCompatActivity {
     private EditText emailInput, passwordInput;
     private Button signInButton;
     private FirebaseAuth mAuth;
+    private ProgressDialog progressDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,7 +37,9 @@ public class LoginActivity extends AppCompatActivity {
 
         // Check if user is already logged in
         if (mAuth.getCurrentUser() != null) {
-            startActivity(new Intent(LoginActivity.this, MainActivity.class));
+            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
             finish();
         }
     }
@@ -54,28 +58,42 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
+        // Show loading dialog
+        progressDialog = new ProgressDialog(this);
+        progressDialog.setMessage("Signing in...");
+        progressDialog.setCancelable(false);
+        progressDialog.show();
+
         // 1. Login with Firebase
         mAuth.signInWithEmailAndPassword(email, password)
                 .addOnCompleteListener(this, task -> {
                     if (task.isSuccessful()) {
                         FirebaseUser user = mAuth.getCurrentUser();
                         if (user != null) {
-                            // 2. Get ID Token and sync with backend
-                            user.getIdToken(true).addOnCompleteListener(tokenTask -> {
+                            // 2. Get ID Token (use cached token for faster login)
+                            user.getIdToken(false).addOnCompleteListener(tokenTask -> {
                                 if (tokenTask.isSuccessful()) {
                                     String idToken = tokenTask.getResult().getToken();
                                     syncWithBackend(idToken);
                                 } else {
+                                    dismissProgressDialog();
                                     Toast.makeText(LoginActivity.this, "Failed to get ID Token", Toast.LENGTH_SHORT)
                                             .show();
                                 }
                             });
                         }
                     } else {
+                        dismissProgressDialog();
                         Toast.makeText(LoginActivity.this, "Authentication Failed: " + task.getException().getMessage(),
                                 Toast.LENGTH_SHORT).show();
                     }
                 });
+    }
+
+    private void dismissProgressDialog() {
+        if (progressDialog != null && progressDialog.isShowing()) {
+            progressDialog.dismiss();
+        }
     }
 
     private void syncWithBackend(String token) {
@@ -83,12 +101,15 @@ public class LoginActivity extends AppCompatActivity {
         RetrofitClient.getApiService().login(bearerToken).enqueue(new Callback<LoginResponse>() {
             @Override
             public void onResponse(Call<LoginResponse> call, Response<LoginResponse> response) {
+                dismissProgressDialog();
                 if (response.isSuccessful() && response.body() != null) {
                     // Successfully synced with backend
                     Toast.makeText(LoginActivity.this, "Signed in successfully", Toast.LENGTH_SHORT).show();
 
-                    // Navigate to MainActivity
-                    startActivity(new Intent(LoginActivity.this, MainActivity.class));
+                    // Navigate to MainActivity and clear back stack
+                    Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(intent);
                     finish();
                 } else {
                     Toast.makeText(LoginActivity.this, "Backend sync failed: " + response.code(), Toast.LENGTH_SHORT)
@@ -98,6 +119,7 @@ public class LoginActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(Call<LoginResponse> call, Throwable t) {
+                dismissProgressDialog();
                 Toast.makeText(LoginActivity.this, "Network Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });

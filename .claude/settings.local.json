@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gradlew.bat:*)",
+      "Bash(./gradlew:*)",
+      "Bash(adb devices:*)",
+      "Bash(adb logcat:*)",
+      "Bash(gradlew clean:*)",
+      "Bash(.gradlew.bat:*)",
+      "Bash(findstr:*)"
+    ]
+  }
+}
