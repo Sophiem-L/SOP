@@ -19,6 +19,7 @@ public class NotificationsActivity extends AppCompatActivity {
     private AuditLogAdapter auditLogAdapter;
     private TextView tabNotifications, tabAuditLogs;
     private View layoutNotifications, layoutAuditLogs;
+    private BottomNavigationView bottomNav;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,36 +34,7 @@ public class NotificationsActivity extends AppCompatActivity {
         recyclerNotifications.setLayoutManager(new LinearLayoutManager(this));
         recyclerAuditLogs.setLayoutManager(new LinearLayoutManager(this));
 
-        // Setup Bottom Navigation
-        BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
-        bottomNav.setSelectedItemId(R.id.navigation_notifications);
-        bottomNav.setOnNavigationItemSelectedListener(item -> {
-            int id = item.getItemId();
-            if (id == R.id.navigation_home) {
-                startActivity(new Intent(this, MainActivity.class));
-                overridePendingTransition(0, 0);
-                finish();
-                return true;
-            } else if (id == R.id.navigation_bookmarks) {
-                startActivity(new Intent(this, BookmarksActivity.class));
-                overridePendingTransition(0, 0);
-                finish();
-                return true;
-            } else if (id == R.id.navigation_search) {
-                startActivity(new Intent(this, SearchActivity.class));
-                overridePendingTransition(0, 0);
-                finish();
-                return true;
-            } else if (id == R.id.navigation_profile) {
-                startActivity(new Intent(this, ProfileActivity.class));
-                overridePendingTransition(0, 0);
-                finish();
-                return true;
-            } else if (id == R.id.navigation_notifications) {
-                return true;
-            }
-            return false;
-        });
+        setupBottomNavigation();
 
         // Setup Tabs
         tabNotifications = findViewById(R.id.tabNotifications);
@@ -75,6 +47,46 @@ public class NotificationsActivity extends AppCompatActivity {
         setTabActive(true);
 
         loadMockNotifications();
+
+        findViewById(R.id.btnSettings).setOnClickListener(v -> {
+            SettingsMenuHelper.showSettingsMenu(NotificationsActivity.this, v);
+        });
+    }
+
+    private void setupBottomNavigation() {
+        bottomNav = findViewById(R.id.bottom_navigation);
+        bottomNav.setSelectedItemId(R.id.navigation_notifications);
+        bottomNav.setOnNavigationItemSelectedListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.navigation_home) {
+                Intent intent = new Intent(this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+                overridePendingTransition(0, 0);
+                return true;
+            } else if (id == R.id.navigation_bookmarks) {
+                Intent intent = new Intent(this, BookmarksActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+                overridePendingTransition(0, 0);
+                return true;
+            } else if (id == R.id.navigation_search) {
+                Intent intent = new Intent(this, SearchActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+                overridePendingTransition(0, 0);
+                return true;
+            } else if (id == R.id.navigation_profile) {
+                Intent intent = new Intent(this, ProfileActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+                overridePendingTransition(0, 0);
+                return true;
+            } else if (id == R.id.navigation_notifications) {
+                return true;
+            }
+            return false;
+        });
     }
 
     private void setTabActive(boolean isNotifications) {
@@ -138,5 +150,22 @@ public class NotificationsActivity extends AppCompatActivity {
 
         auditLogAdapter = new AuditLogAdapter(logs);
         recyclerAuditLogs.setAdapter(auditLogAdapter);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (bottomNav != null) {
+            bottomNav.setSelectedItemId(R.id.navigation_notifications);
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        // Navigate to home when back is pressed
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        startActivity(intent);
+        finish();
     }
 }

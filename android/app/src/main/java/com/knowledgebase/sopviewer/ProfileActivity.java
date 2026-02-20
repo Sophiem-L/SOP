@@ -15,6 +15,7 @@ public class ProfileActivity extends AppCompatActivity {
     private View btnSettings, editProfileItem, changePasswordItem, manageDownloadsItem, viewActivityLogItem,
             notificationPrefsItem, logoutItem;
     private FirebaseAuth mAuth;
+    private BottomNavigationView bottomNav;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,31 +64,35 @@ public class ProfileActivity extends AppCompatActivity {
     }
 
     private void setupBottomNavigation() {
-        BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
+        bottomNav = findViewById(R.id.bottom_navigation);
         bottomNav.setSelectedItemId(R.id.navigation_profile);
         bottomNav.setOnNavigationItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.navigation_home) {
-                startActivity(new Intent(this, MainActivity.class));
+                Intent intent = new Intent(this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
                 overridePendingTransition(0, 0);
-                finish();
                 return true;
             } else if (id == R.id.navigation_bookmarks) {
-                startActivity(new Intent(this, BookmarksActivity.class));
+                Intent intent = new Intent(this, BookmarksActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
                 overridePendingTransition(0, 0);
-                finish();
                 return true;
             } else if (id == R.id.navigation_profile) {
                 return true;
             } else if (id == R.id.navigation_search) {
-                startActivity(new Intent(this, SearchActivity.class));
+                Intent intent = new Intent(this, SearchActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
                 overridePendingTransition(0, 0);
-                finish();
                 return true;
             } else if (id == R.id.navigation_notifications) {
-                startActivity(new Intent(this, NotificationsActivity.class));
+                Intent intent = new Intent(this, NotificationsActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
                 overridePendingTransition(0, 0);
-                finish();
                 return true;
             }
             return false;
@@ -113,7 +118,7 @@ public class ProfileActivity extends AppCompatActivity {
 
     private void setupClickListeners() {
         btnSettings.setOnClickListener(v -> {
-            // TODO: Open settings
+            SettingsMenuHelper.showSettingsMenu(ProfileActivity.this, v);
         });
 
         editProfileItem.setOnClickListener(v -> {
@@ -146,9 +151,18 @@ public class ProfileActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (bottomNav != null) {
+            bottomNav.setSelectedItemId(R.id.navigation_profile);
+        }
+    }
+
+    @Override
     public void onBackPressed() {
         // Navigate to home when back is pressed
         Intent intent = new Intent(this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
         startActivity(intent);
         finish();
     }

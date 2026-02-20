@@ -17,6 +17,8 @@ class ApiController extends Controller
             $query->where('title', 'like', '%' . $search . '%')
                 ->orWhere('content', 'like', '%' . $search . '%');
         }
+
+        $query->orderByDesc('updated_at');
         return response()->json($query->get());
     }
 
@@ -26,8 +28,11 @@ class ApiController extends Controller
         if ($request->has('q')) {
             $search = $request->query('q');
             $query->where('title', 'like', '%' . $search . '%')
-                ->orWhere('description', 'like', '%' . $search . '%');
+                ->orWhere('steps', 'like', '%' . $search . '%');
         }
+
+        $query->orderByDesc('updated_at');
+
         return response()->json($query->get());
     }
 }

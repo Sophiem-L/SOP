@@ -23,6 +23,8 @@ public class BookmarksActivity extends AppCompatActivity {
     private LinearLayout emptyState;
     private RecentAdapter bookmarkAdapter;
     private FirebaseAuth mAuth;
+    private BottomNavigationView bottomNav;
+    private android.widget.ProgressBar progressLoading;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,8 +43,12 @@ public class BookmarksActivity extends AppCompatActivity {
 
         recyclerBookmarks = findViewById(R.id.recyclerBookmarks);
         emptyState = findViewById(R.id.emptyState);
+        progressLoading = findViewById(R.id.progressLoading);
 
-        BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
+        bottomNav = findViewById(R.id.bottom_navigation);
+        findViewById(R.id.btnSettings).setOnClickListener(v -> {
+            SettingsMenuHelper.showSettingsMenu(BookmarksActivity.this, v);
+        });
         bottomNav.setSelectedItemId(R.id.navigation_bookmarks);
         bottomNav.setOnNavigationItemSelectedListener(item -> {
             int id = item.getItemId();
@@ -79,11 +85,27 @@ public class BookmarksActivity extends AppCompatActivity {
         fetchBookmarks();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (bottomNav != null) {
+            bottomNav.setSelectedItemId(R.id.navigation_bookmarks);
+        }
+    }
+
     private void fetchBookmarks() {
+        // Show loading state
+        if (progressLoading != null)
+            progressLoading.setVisibility(View.VISIBLE);
+        emptyState.setVisibility(View.GONE);
+        recyclerBookmarks.setVisibility(View.GONE);
+
         // Check cache first
         List<RecentDoc> cachedBookmarks = DataCache.getInstance().get(DataCache.KEY_BOOKMARKS);
         if (cachedBookmarks != null) {
             android.util.Log.d("BookmarksActivity", "Using cached bookmarks (" + cachedBookmarks.size() + ")");
+            if (progressLoading != null)
+                progressLoading.setVisibility(View.GONE);
             setupRecyclerView(cachedBookmarks, "cached");
             return;
         }
@@ -122,6 +144,8 @@ public class BookmarksActivity extends AppCompatActivity {
 
                         @Override
                         public void onFailure(Call<List<Document>> call, Throwable t) {
+                            if (progressLoading != null)
+                                progressLoading.setVisibility(View.GONE);
                             Toast.makeText(BookmarksActivity.this, "Failed to load bookmarks", Toast.LENGTH_SHORT)
                                     .show();
                         }
@@ -132,6 +156,8 @@ public class BookmarksActivity extends AppCompatActivity {
     }
 
     private void setupRecyclerView(List<RecentDoc> docs, String token) {
+        if (progressLoading != null)
+            progressLoading.setVisibility(View.GONE);
         if (docs.isEmpty()) {
             emptyState.setVisibility(View.VISIBLE);
             recyclerBookmarks.setVisibility(View.GONE);

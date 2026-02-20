@@ -18,6 +18,12 @@ import java.util.List;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.TextView;
+import androidx.constraintlayout.widget.ConstraintLayout;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -31,6 +37,20 @@ public class MainActivity extends AppCompatActivity {
     private List<FolderDoc> folders = new ArrayList<>();
 
     private PagerSnapHelper snapHelper = new PagerSnapHelper();
+
+    // Search related views
+    private View topBarArea;
+    private View homeContentArea;
+    private ConstraintLayout searchResultContainer;
+    private RecyclerView recyclerSearchResults;
+    private TextView tvNoResults;
+    private EditText searchEditText;
+    private ImageView btnClearSearch;
+    private SearchAdapter searchAdapter;
+    private List<RecentDoc> searchResultsList = new ArrayList<>();
+
+    // Pagination dots
+    private View dot1, dot2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -110,12 +130,58 @@ public class MainActivity extends AppCompatActivity {
             startActivity(new Intent(MainActivity.this, CreateDocumentActivity.class));
         });
 
+        // Initialize Search Views
+        topBarArea = findViewById(R.id.topBarArea);
+        homeContentArea = findViewById(R.id.homeContentArea);
+        searchResultContainer = findViewById(R.id.searchResultContainer);
+        recyclerSearchResults = findViewById(R.id.recyclerSearchResults);
+        tvNoResults = findViewById(R.id.tvNoResults);
+        searchEditText = findViewById(R.id.searchEditText);
+        btnClearSearch = findViewById(R.id.btnClearSearch);
+
+        findViewById(R.id.btnSettings).setOnClickListener(v -> {
+            SettingsMenuHelper.showSettingsMenu(MainActivity.this, v);
+        });
+
+        setupSearchLogic();
+
+        // Initialize Pagination Dots
+        dot1 = findViewById(R.id.dot1);
+        dot2 = findViewById(R.id.dot2);
+
+        recyclerRecent.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
+                super.onScrollStateChanged(recyclerView, newState);
+                if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                    View centerView = snapHelper.findSnapView(recyclerRecent.getLayoutManager());
+                    if (centerView != null) {
+                        int position = recyclerRecent.getLayoutManager().getPosition(centerView);
+                        updateDots(position);
+                    }
+                }
+            }
+        });
+
+        findViewById(R.id.btnSeeAll).setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, SearchActivity.class);
+            startActivity(intent);
+        });
+
         fetchDataFromBackend();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+
+        // Ensure home is selected in bottom navigation
+        com.google.android.material.bottomnavigation.BottomNavigationView bottomNav = findViewById(
+                R.id.bottom_navigation);
+        if (bottomNav != null) {
+            bottomNav.setSelectedItemId(R.id.navigation_home);
+        }
+
         // Only fetch if not already loaded (saves unnecessary API calls)
         if (!isDataLoaded) {
             fetchDataFromBackend();
@@ -150,11 +216,11 @@ public class MainActivity extends AppCompatActivity {
         recentDocs.clear();
 
         // Fetch documents and articles in parallel for better performance
-        final int[] completedCalls = {0};
+        final int[] completedCalls = { 0 };
         final int totalCalls = 2;
 
         // Fetch documents
-        RetrofitClient.getApiService().getDocuments(token, null).enqueue(new Callback<List<Document>>() {
+        RetrofitClient.getApiService().getDocuments(token, "", "recent", null).enqueue(new Callback<List<Document>>() {
             @Override
             public void onResponse(Call<List<Document>> call, Response<List<Document>> response) {
                 if (response.isSuccessful() && response.body() != null) {
@@ -188,7 +254,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // Fetch articles in parallel
-        RetrofitClient.getApiService().getArticles(token, null).enqueue(new Callback<List<Article>>() {
+        RetrofitClient.getApiService().getArticles(token, "", "recent").enqueue(new Callback<List<Article>>() {
             @Override
             public void onResponse(Call<List<Article>> call, Response<List<Article>> response) {
                 if (response.isSuccessful() && response.body() != null) {
@@ -250,6 +316,9 @@ public class MainActivity extends AppCompatActivity {
             public void onResponse(Call<List<Category>> call, Response<List<Category>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     android.util.Log.d("MainActivity", "Categories received: " + response.body().size());
+                    for (Category c : response.body()) {
+                        android.util.Log.d("MainActivity", "Cat: " + c.getName() + " Count: " + c.getDocumentsCount());
+                    }
 
                     // Cache the response
                     DataCache.getInstance().put(DataCache.KEY_MAIN_CATEGORIES, response.body());
@@ -281,6 +350,9 @@ public class MainActivity extends AppCompatActivity {
             };
             int i = 0;
             for (Category cat : categories) {
+                if (cat.getDocumentsCount() == 0)
+                    continue;
+
                 String updatedAt = cat.getUpdatedAt();
                 String lastEdited = "N/A";
                 if (updatedAt != null && updatedAt.length() >= 10) {
@@ -293,19 +365,6 @@ public class MainActivity extends AppCompatActivity {
                         "Last edited: " + lastEdited,
                         colors[i % colors.length]));
                 i++;
-            }
-
-            if (folders.isEmpty()) {
-                folders.add(
-                        new FolderDoc("Policies", 32, "Last edited Feb 01, 2023", R.color.bg_purple_light));
-                folders.add(new FolderDoc("HR Document", 10, "Last edited Mar 06, 2023",
-                        R.color.bg_pink_light));
-                folders.add(
-                        new FolderDoc("Security", 5, "Last edited Jan 25, 2023", R.color.bg_green_light));
-                folders.add(
-                        new FolderDoc("Finance", 8, "Last edited Jan 15, 2023", R.color.bg_orange_light));
-                folders.add(
-                        new FolderDoc("Management", 12, "Last edited Feb 10, 2023", R.color.bg_blue_light));
             }
 
             updateFoldersAdapter();
@@ -323,6 +382,100 @@ public class MainActivity extends AppCompatActivity {
         } else {
             // Update existing adapter (more efficient)
             folderAdapter.notifyDataSetChanged();
+        }
+    }
+
+    private void setupSearchLogic() {
+        searchEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String query = s.toString().trim();
+                if (query.isEmpty()) {
+                    showHomeContent();
+                } else {
+                    showSearchResultContainer();
+                    performHomeSearch(query);
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        });
+
+        btnClearSearch.setOnClickListener(v -> {
+            searchEditText.setText("");
+            showHomeContent();
+        });
+
+        recyclerSearchResults.setLayoutManager(new LinearLayoutManager(this));
+        searchAdapter = new SearchAdapter(searchResultsList);
+        recyclerSearchResults.setAdapter(searchAdapter);
+    }
+
+    private void showHomeContent() {
+        homeContentArea.setVisibility(View.VISIBLE);
+        searchResultContainer.setVisibility(View.GONE);
+        btnClearSearch.setVisibility(View.GONE);
+    }
+
+    private void showSearchResultContainer() {
+        homeContentArea.setVisibility(View.GONE);
+        searchResultContainer.setVisibility(View.VISIBLE);
+        btnClearSearch.setVisibility(View.VISIBLE);
+    }
+
+    private void performHomeSearch(String query) {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null)
+            return;
+
+        user.getIdToken(false).addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                String token = "Bearer " + task.getResult().getToken();
+                RetrofitClient.getApiService().getDocuments(token, query, "recent", null)
+                        .enqueue(new Callback<List<Document>>() {
+                            @Override
+                            public void onResponse(Call<List<Document>> call, Response<List<Document>> response) {
+                                if (response.isSuccessful() && response.body() != null) {
+                                    searchResultsList.clear();
+                                    for (Document doc : response.body()) {
+                                        searchResultsList.add(new RecentDoc(
+                                                doc.getId(),
+                                                doc.getTitle(),
+                                                doc.getDescription() != null ? doc.getDescription() : "No description",
+                                                doc.getUpdatedAt() != null ? doc.getUpdatedAt().substring(0, 10)
+                                                        : "N/A",
+                                                R.drawable.file_logo,
+                                                doc.getIsFavorite() > 0));
+                                    }
+                                    searchAdapter.notifyDataSetChanged();
+                                    tvNoResults.setVisibility(searchResultsList.isEmpty() ? View.VISIBLE : View.GONE);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Call<List<Document>> call, Throwable t) {
+                                android.util.Log.e("MainActivity", "Search failed: " + t.getMessage());
+                            }
+                        });
+            }
+        });
+    }
+
+    private void updateDots(int position) {
+        if (dot1 != null && dot2 != null) {
+            if (position == 0) {
+                dot1.setBackgroundResource(R.drawable.bg_dot_active);
+                dot2.setBackgroundResource(R.drawable.bg_dot_inactive);
+            } else {
+                dot1.setBackgroundResource(R.drawable.bg_dot_inactive);
+                dot2.setBackgroundResource(R.drawable.bg_dot_active);
+            }
         }
     }
 }

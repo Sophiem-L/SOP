@@ -17,11 +17,13 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ApiController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\DocumentController;
 
 Route::post('/register', [AuthController::class, 'register']);
 
 Route::middleware(['firebase.auth'])->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/articles', [ApiController::class, 'getArticles']);
     Route::get('/sops', [ApiController::class, 'getSops']);
 
@@ -33,14 +35,16 @@ Route::middleware(['firebase.auth'])->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    // Documents
+    Route::get('/documents', [DocumentController::class, 'index']);
+    Route::post('/documents', [DocumentController::class, 'store']);
+    Route::get('/documents/favorites', [DocumentController::class, 'favorites']);
+    Route::post('/documents/{id}/favorite', [DocumentController::class, 'toggleFavorite']);
 });
 
 // Public routes (no Firebase auth required)
-Route::get('/categories', [App\Http\Controllers\DocumentController::class, 'categories']);
-Route::get('/documents', [App\Http\Controllers\DocumentController::class, 'index']);
-Route::post('/documents', [App\Http\Controllers\DocumentController::class, 'store']);
-Route::get('/documents/favorites', [App\Http\Controllers\DocumentController::class, 'favorites']);
-Route::post('/documents/{id}/favorite', [App\Http\Controllers\DocumentController::class, 'toggleFavorite']);
+Route::get('/categories', [DocumentController::class, 'categories']);
 
 // Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 //     return $request->user();

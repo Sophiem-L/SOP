@@ -3,7 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_light">
+    android:background="@color/white"
+    android:fitsSystemWindows="true">
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
@@ -17,103 +18,69 @@
             android:orientation="vertical">
 
             <!-- Search Header -->
-            <LinearLayout
+            <androidx.constraintlayout.widget.ConstraintLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@color/white"
-                android:padding="16dp"
-                android:elevation="2dp">
+                android:paddingHorizontal="24dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="16dp"
+                android:background="@color/white">
 
                 <TextView
+                    android:id="@+id/tvSearchTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Search"
-                    android:textColor="@color/text_primary"
+                    android:textColor="@color/black"
                     android:textSize="24sp"
                     android:textStyle="bold"
-                    android:layout_marginBottom="16dp" />
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent" />
+
+                <ImageView
+                    android:id="@+id/btnFilter"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_settings"
+                    app:layout_constraintBottom_toBottomOf="@+id/tvSearchTitle"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="@+id/tvSearchTitle"
+                    app:tint="@color/black" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
+                    android:layout_height="64dp"
+                    android:layout_marginTop="16dp"
                     android:background="@drawable/bg_rounded_search"
-                    android:backgroundTint="@color/bg_light"
-                    android:padding="12dp"
-                    android:gravity="center_vertical">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="20dp"
+                    android:elevation="2dp"
+                    android:translationZ="2dp"
+                    app:layout_constraintTop_toBottomOf="@+id/tvSearchTitle">
 
                     <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
                         android:src="@drawable/ic_search"
-                        android:layout_marginEnd="12dp"
-                        app:tint="@color/text_secondary" />
+                        app:tint="@color/black" />
 
                     <EditText
                         android:id="@+id/searchInput"
-                        android:layout_width="0dp"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:hint="Search SOPs, categories, or keyword"
-                        android:textColorHint="@color/text_secondary"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
+                        android:layout_marginStart="16dp"
                         android:background="@null"
+                        android:hint="Search SOPs, categories, or keyword"
+                        android:imeOptions="actionSearch"
                         android:inputType="text"
-                        android:imeOptions="actionSearch" />
+                        android:textColor="@color/black"
+                        android:textColorHint="@color/gray_text"
+                        android:textSize="18sp" />
 
                 </LinearLayout>
 
-            </LinearLayout>
-
-            <!-- Recent Tags -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@color/white"
-                android:layout_marginTop="8dp"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Recent HR Updates"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="12dp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="IT Security"
-                        android:background="@drawable/bg_rounded_card"
-                        android:backgroundTint="@color/bg_blue_light"
-                        android:padding="8dp"
-                        android:layout_marginEnd="8dp"
-                        android:textColor="@color/brand_blue"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Finance Pro"
-                        android:background="@drawable/bg_rounded_card"
-                        android:backgroundTint="@color/bg_green_light"
-                        android:padding="8dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
-
-                </LinearLayout>
-
-            </LinearLayout>
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
             <!-- Quick Filters -->
             <LinearLayout
@@ -133,59 +100,18 @@
                     android:textStyle="bold"
                     android:layout_marginBottom="12dp" />
 
-                <LinearLayout
+                <HorizontalScrollView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:scrollbars="none">
 
-                    <TextView
-                        android:id="@+id/filterHrPolicies"
+                    <LinearLayout
+                        android:id="@+id/quickFilterContainer"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="HR Policies"
-                        android:background="@drawable/bg_rounded_card"
-                        android:backgroundTint="@color/brand_blue"
-                        android:padding="8dp"
-                        android:layout_marginEnd="8dp"
-                        android:textColor="@color/white"
-                        android:textSize="14sp" />
+                        android:orientation="horizontal" />
 
-                    <TextView
-                        android:id="@+id/filterItGuidelines"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="IT Guidelines"
-                        android:background="@drawable/bg_rounded_card"
-                        android:backgroundTint="@color/bg_light"
-                        android:padding="8dp"
-                        android:layout_marginEnd="8dp"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:id="@+id/filterFinance"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Finance"
-                        android:background="@drawable/bg_rounded_card"
-                        android:backgroundTint="@color/bg_light"
-                        android:padding="8dp"
-                        android:layout_marginEnd="8dp"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:id="@+id/filterCc"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Cc"
-                        android:background="@drawable/bg_rounded_card"
-                        android:backgroundTint="@color/bg_light"
-                        android:padding="8dp"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="14sp" />
-
-                </LinearLayout>
+                </HorizontalScrollView>
 
             </LinearLayout>
 
@@ -209,6 +135,7 @@
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/btnSortRecent"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Most Recent"
@@ -217,6 +144,7 @@
                     android:layout_marginEnd="16dp" />
 
                 <TextView
+                    android:id="@+id/btnSortViewed"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Most Viewed"
@@ -226,13 +154,56 @@
             </LinearLayout>
 
             <!-- Search Results -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/searchResults"
+            <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:padding="16dp"
-                android:nestedScrollingEnabled="false" />
+                android:layout_marginTop="8dp">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/searchResults"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="16dp"
+                    android:nestedScrollingEnabled="false" />
+
+                <!-- Empty State -->
+                <LinearLayout
+                    android:id="@+id/emptyStateSearch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_centerInParent="true"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="40dp"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:layout_width="80dp"
+                        android:layout_height="80dp"
+                        android:src="@drawable/ic_search"
+                        app:tint="@color/bg_light" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:text="No search results available"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center"
+                        android:text="Try adjusting your keywords or filters to find what you're looking for."
+                        android:textColor="@color/gray_text"
+                        android:textSize="14sp" />
+
+                </LinearLayout>
+
+            </RelativeLayout>
 
             <!-- Bottom margin for navigation if needed -->
             <View

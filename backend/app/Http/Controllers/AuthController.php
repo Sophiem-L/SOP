@@ -9,6 +9,7 @@ use App\Models\Role;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Cache;
 
 class AuthController extends Controller
 {
@@ -77,6 +78,18 @@ class AuthController extends Controller
             DB::rollBack();
             return response()->json(['message' => 'Registration failed: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Logout - clears the server-side token cache so the token cannot be reused.
+     */
+    public function logout(Request $request)
+    {
+        $token = $request->bearerToken();
+        if ($token) {
+            Cache::forget('firebase_token_' . md5($token));
+        }
+        return response()->json(['message' => 'Logged out successfully']);
     }
 
     /**

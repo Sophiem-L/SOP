@@ -58,6 +58,9 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
                     if (response.isSuccessful()) {
                         String message = newStatus ? "Added to bookmarks" : "Removed from bookmarks";
                         Toast.makeText(holder.itemView.getContext(), message, Toast.LENGTH_SHORT).show();
+
+                        // Clear bookmarks cache to force refresh when visiting BookmarksActivity
+                        DataCache.getInstance().clear(DataCache.KEY_BOOKMARKS);
                     } else {
                         // Rollback on failure
                         doc.setFavorite(!newStatus);
@@ -75,6 +78,17 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
                     Toast.makeText(holder.itemView.getContext(), "Network error", Toast.LENGTH_SHORT).show();
                 }
             });
+        });
+
+        // Make the entire item clickable
+        holder.itemView.setOnClickListener(v -> {
+            android.content.Intent intent = new android.content.Intent(holder.itemView.getContext(),
+                    DocumentDetailActivity.class);
+            intent.putExtra("id", doc.getId());
+            intent.putExtra("title", doc.getTitle());
+            intent.putExtra("description", doc.getDescription());
+            intent.putExtra("date", doc.getDate());
+            holder.itemView.getContext().startActivity(intent);
         });
 
         if (holder.btnView != null) {

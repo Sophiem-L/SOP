@@ -7,6 +7,7 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -25,9 +26,14 @@ public class SearchActivity extends AppCompatActivity {
     private List<RecentDoc> searchResultsList;
     private BottomNavigationView bottomNav;
     private FirebaseAuth mAuth;
+    private View emptyStateSearch;
+    private int pendingResponses = 0;
 
     // Filters
-    private TextView filterHrPolicies, filterItGuidelines, filterFinance, filterCc;
+    private android.widget.LinearLayout quickFilterContainer;
+    private TextView btnSortRecent, btnSortViewed;
+    private String currentSort = "recent";
+    private Integer currentCategoryId = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,6 +65,12 @@ public class SearchActivity extends AppCompatActivity {
         // Setup search functionality
         setupSearch();
 
+        // Setup sorting
+        setupSorting();
+
+        // Load dynamic filters
+        loadDynamicFilters();
+
         // Load initial data
         loadInitialData();
     }
@@ -67,11 +79,7 @@ public class SearchActivity extends AppCompatActivity {
         searchInput = findViewById(R.id.searchInput);
         searchResults = findViewById(R.id.searchResults);
         bottomNav = findViewById(R.id.bottom_navigation);
-
-        filterHrPolicies = findViewById(R.id.filterHrPolicies);
-        filterItGuidelines = findViewById(R.id.filterItGuidelines);
-        filterFinance = findViewById(R.id.filterFinance);
-        filterCc = findViewById(R.id.filterCc);
+        quickFilterContainer = findViewById(R.id.quickFilterContainer);
 
         // Debug: Check if views are found
         if (searchInput == null)
@@ -92,26 +100,118 @@ public class SearchActivity extends AppCompatActivity {
         searchAdapter = new SearchAdapter(searchResultsList);
         searchResults.setLayoutManager(new LinearLayoutManager(this));
         searchResults.setAdapter(searchAdapter);
+
+        btnSortRecent = findViewById(R.id.btnSortRecent);
+        btnSortViewed = findViewById(R.id.btnSortViewed);
+        emptyStateSearch = findViewById(R.id.emptyStateSearch);
+
+        findViewById(R.id.btnFilter).setOnClickListener(v -> {
+            SettingsMenuHelper.showSettingsMenu(SearchActivity.this, v);
+        });
+
         return true;
     }
 
     private void setupFilters() {
-        android.view.View.OnClickListener filterListener = v -> {
-            if (v instanceof TextView) {
-                String filterText = ((TextView) v).getText().toString();
-                searchInput.setText(filterText);
-                performSearch(filterText);
-            }
-        };
+        // Dynamic filters setup is handled in loadDynamicFilters()
+    }
 
-        if (filterHrPolicies != null)
-            filterHrPolicies.setOnClickListener(filterListener);
-        if (filterItGuidelines != null)
-            filterItGuidelines.setOnClickListener(filterListener);
-        if (filterFinance != null)
-            filterFinance.setOnClickListener(filterListener);
-        if (filterCc != null)
-            filterCc.setOnClickListener(filterListener);
+    private void loadDynamicFilters() {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null)
+            return;
+
+        user.getIdToken(false).addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                String token = "Bearer " + task.getResult().getToken();
+
+                // Check cache first
+                List<Category> cachedCategories = DataCache.getInstance().get(DataCache.KEY_MAIN_CATEGORIES);
+                if (cachedCategories != null) {
+                    populateFilters(cachedCategories);
+                } else {
+                    RetrofitClient.getApiService().getCategories(token)
+                            .enqueue(new retrofit2.Callback<List<Category>>() {
+                                @Override
+                                public void onResponse(retrofit2.Call<List<Category>> call,
+                                        retrofit2.Response<List<Category>> response) {
+                                    if (response.isSuccessful() && response.body() != null) {
+                                        DataCache.getInstance().put(DataCache.KEY_MAIN_CATEGORIES, response.body());
+                                        populateFilters(response.body());
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(retrofit2.Call<List<Category>> call, Throwable t) {
+                                    android.util.Log.e("SearchActivity",
+                                            "Failed to load categories: " + t.getMessage());
+                                }
+                            });
+                }
+            }
+        });
+    }
+
+    private void populateFilters(List<Category> categories) {
+        if (quickFilterContainer == null)
+            return;
+        quickFilterContainer.removeAllViews();
+
+        for (Category cat : categories) {
+            if (cat.getDocumentsCount() == 0)
+                continue;
+
+            TextView tv = new TextView(this);
+            tv.setText(cat.getName());
+            tv.setTag(cat.getId());
+            tv.setBackgroundResource(R.drawable.bg_rounded_card);
+            tv.setBackgroundTintList(
+                    android.content.res.ColorStateList.valueOf(getResources().getColor(R.color.bg_light)));
+            tv.setTextColor(getResources().getColor(R.color.text_secondary));
+            tv.setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8));
+            tv.setTextSize(14f);
+
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            params.setMargins(0, 0, dpToPx(8), 0);
+            tv.setLayoutParams(params);
+
+            tv.setOnClickListener(v -> {
+                int catId = cat.getId();
+                if (currentCategoryId != null && currentCategoryId == catId) {
+                    // Deselect: tap same chip again to clear filter
+                    currentCategoryId = null;
+                    resetChipHighlights();
+                } else {
+                    // Select this category
+                    currentCategoryId = catId;
+                    resetChipHighlights();
+                    tv.setBackgroundTintList(
+                            android.content.res.ColorStateList.valueOf(getResources().getColor(R.color.brand_blue)));
+                    tv.setTextColor(getResources().getColor(R.color.white));
+                }
+                performSearch(searchInput.getText().toString().trim());
+            });
+
+            quickFilterContainer.addView(tv);
+        }
+    }
+
+    private void resetChipHighlights() {
+        for (int i = 0; i < quickFilterContainer.getChildCount(); i++) {
+            View child = quickFilterContainer.getChildAt(i);
+            if (child instanceof TextView) {
+                ((TextView) child).setBackgroundTintList(
+                        android.content.res.ColorStateList.valueOf(getResources().getColor(R.color.bg_light)));
+                ((TextView) child).setTextColor(getResources().getColor(R.color.text_secondary));
+            }
+        }
+    }
+
+    private int dpToPx(int dp) {
+        float density = getResources().getDisplayMetrics().density;
+        return Math.round((float) dp * density);
     }
 
     private void setupBottomNavigation() {
@@ -147,6 +247,41 @@ public class SearchActivity extends AppCompatActivity {
             }
             return false;
         });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (bottomNav != null) {
+            bottomNav.setSelectedItemId(R.id.navigation_search);
+        }
+    }
+
+    private void setupSorting() {
+        if (btnSortRecent != null) {
+            btnSortRecent.setOnClickListener(v -> {
+                currentSort = "recent";
+                updateSortUI();
+                performSearch(searchInput.getText().toString().trim());
+            });
+        }
+        if (btnSortViewed != null) {
+            btnSortViewed.setOnClickListener(v -> {
+                currentSort = "viewed";
+                updateSortUI();
+                performSearch(searchInput.getText().toString().trim());
+            });
+        }
+    }
+
+    private void updateSortUI() {
+        if (currentSort.equals("recent")) {
+            btnSortRecent.setTextColor(getResources().getColor(R.color.brand_blue));
+            btnSortViewed.setTextColor(getResources().getColor(R.color.text_secondary));
+        } else {
+            btnSortRecent.setTextColor(getResources().getColor(R.color.text_secondary));
+            btnSortViewed.setTextColor(getResources().getColor(R.color.brand_blue));
+        }
     }
 
     private void setupSearch() {
@@ -185,7 +320,7 @@ public class SearchActivity extends AppCompatActivity {
             user.getIdToken(false).addOnCompleteListener(task -> {
                 if (task.isSuccessful()) {
                     String idToken = "Bearer " + task.getResult().getToken();
-                    loadSearchResults(idToken, null);
+                    loadSearchResults(idToken, null, currentSort);
                 }
             });
         }
@@ -197,47 +332,52 @@ public class SearchActivity extends AppCompatActivity {
             user.getIdToken(false).addOnCompleteListener(task -> {
                 if (task.isSuccessful()) {
                     String idToken = "Bearer " + task.getResult().getToken();
-                    loadSearchResults(idToken, query);
+                    loadSearchResults(idToken, query, currentSort);
                 }
             });
         }
     }
 
-    private void loadSearchResults(String token, String query) {
+    private void loadSearchResults(String token, String query, String sort) {
         searchResultsList.clear();
+        searchAdapter.notifyDataSetChanged();
+        pendingResponses = 3; // Documents, Articles, SOPs
+        updateEmptyState(false); // Hide while loading
 
         // Fetch documents
-        RetrofitClient.getApiService().getDocuments(token, query).enqueue(new retrofit2.Callback<List<Document>>() {
-            @Override
-            public void onResponse(retrofit2.Call<List<Document>> call, retrofit2.Response<List<Document>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    for (Document doc : response.body()) {
-                        String description = doc.getDescription() != null ? doc.getDescription()
-                                : "No description available";
-                        String date = "Updated: "
-                                + (doc.getUpdatedAt() != null ? doc.getUpdatedAt().substring(0, 10) : "N/A");
-                        searchResultsList.add(new RecentDoc(
-                                doc.getId(),
-                                doc.getTitle(),
-                                description,
-                                date,
-                                R.drawable.file_logo,
-                                doc.getIsFavorite() > 0));
+        RetrofitClient.getApiService().getDocuments(token, query, sort, currentCategoryId)
+                .enqueue(new retrofit2.Callback<List<Document>>() {
+                    @Override
+                    public void onResponse(retrofit2.Call<List<Document>> call,
+                            retrofit2.Response<List<Document>> response) {
+                        if (response.isSuccessful() && response.body() != null) {
+                            for (Document doc : response.body()) {
+                                String description = doc.getDescription() != null ? doc.getDescription()
+                                        : "No description available";
+                                String date = "Updated: "
+                                        + (doc.getUpdatedAt() != null ? doc.getUpdatedAt().substring(0, 10) : "N/A");
+                                searchResultsList.add(new RecentDoc(
+                                        doc.getId(),
+                                        doc.getTitle(),
+                                        description,
+                                        date,
+                                        R.drawable.file_logo,
+                                        doc.getIsFavorite() > 0));
+                            }
+                            searchAdapter.notifyDataSetChanged();
+                        }
+                        decrementPendingResponses();
                     }
-                    searchAdapter.notifyDataSetChanged();
-                } else {
-                    android.util.Log.e("SearchActivity", "Documents Error: " + response.code());
-                }
-            }
 
-            @Override
-            public void onFailure(retrofit2.Call<List<Document>> call, Throwable t) {
-                android.util.Log.e("SearchActivity", "Failed to load documents: " + t.getMessage());
-            }
-        });
+                    @Override
+                    public void onFailure(retrofit2.Call<List<Document>> call, Throwable t) {
+                        android.util.Log.e("SearchActivity", "Failed to load documents: " + t.getMessage());
+                        decrementPendingResponses();
+                    }
+                });
 
         // Fetch articles
-        RetrofitClient.getApiService().getArticles(token, query).enqueue(new retrofit2.Callback<List<Article>>() {
+        RetrofitClient.getApiService().getArticles(token, query, sort).enqueue(new retrofit2.Callback<List<Article>>() {
             @Override
             public void onResponse(retrofit2.Call<List<Article>> call, retrofit2.Response<List<Article>> response) {
                 if (response.isSuccessful() && response.body() != null) {
@@ -252,13 +392,54 @@ public class SearchActivity extends AppCompatActivity {
                     }
                     searchAdapter.notifyDataSetChanged();
                 }
+                decrementPendingResponses();
             }
 
             @Override
             public void onFailure(retrofit2.Call<List<Article>> call, Throwable t) {
                 android.util.Log.e("SearchActivity", "Failed to load articles: " + t.getMessage());
+                decrementPendingResponses();
             }
         });
+
+        // Fetch sops
+        RetrofitClient.getApiService().getSops(token, query, sort).enqueue(new retrofit2.Callback<List<Sop>>() {
+            @Override
+            public void onResponse(retrofit2.Call<List<Sop>> call, retrofit2.Response<List<Sop>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    for (Sop sop : response.body()) {
+                        searchResultsList.add(new RecentDoc(
+                                sop.getId(),
+                                sop.getTitle(),
+                                sop.getSteps(),
+                                "SOP",
+                                R.drawable.file_logo,
+                                false));
+                    }
+                    searchAdapter.notifyDataSetChanged();
+                }
+                decrementPendingResponses();
+            }
+
+            @Override
+            public void onFailure(retrofit2.Call<List<Sop>> call, Throwable t) {
+                android.util.Log.e("SearchActivity", "Failed to load sops: " + t.getMessage());
+                decrementPendingResponses();
+            }
+        });
+    }
+
+    private void decrementPendingResponses() {
+        pendingResponses--;
+        if (pendingResponses <= 0) {
+            updateEmptyState(searchResultsList.isEmpty());
+        }
+    }
+
+    private void updateEmptyState(boolean isEmpty) {
+        if (emptyStateSearch != null) {
+            emptyStateSearch.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
+        }
     }
 
     @Override

@@ -68,14 +68,7 @@ class DocumentController extends Controller
 
     public function categories()
     {
-        // Cache categories for 5 minutes to reduce database load
-        $categories = \Illuminate\Support\Facades\Cache::remember('categories_with_count', 300, function () {
-            return Category::select('id', 'name', 'updated_at')
-                ->withCount('documents')
-                ->get();
-        });
-
-        \Log::info('Categories fetched: ' . $categories->count());
+        $categories = Category::has('documents')->withCount('documents')->get();
         return response()->json($categories);
     }
 
@@ -94,12 +87,29 @@ class DocumentController extends Controller
             'documents.updated_at'
         ]);
 
-        if ($request->has('q')) {
+        if ($request->has('q') && $request->query('q') !== '') {
             $search = $request->query('q');
             $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', '%' . $search . '%')
-                    ->orWhere('description', 'like', '%' . $search . '%');
+                $q->where('documents.title', 'like', '%' . $search . '%')
+                    ->orWhere('documents.description', 'like', '%' . $search . '%');
             });
+        }
+
+        if ($request->has('category_id') && $request->query('category_id') !== '') {
+            $query->where('documents.category_id', $request->query('category_id'));
+        }
+
+        $sort = $request->query('sort', 'recent');
+        if ($sort === 'viewed') {
+            $query->leftJoin('audit_logs', function ($join) {
+                $join->on('audit_logs.document_id', '=', 'documents.id')
+                    ->where('audit_logs.action', '=', 'view');
+            })
+                ->groupBy('documents.id', 'documents.title', 'documents.description', 'documents.category_id', 'documents.updated_at')
+                ->selectRaw('count(audit_logs.id) as view_count')
+                ->orderByDesc('view_count');
+        } else {
+            $query->orderByDesc('documents.updated_at');
         }
 
         // Use LEFT JOIN instead of subquery for better performance
@@ -112,8 +122,7 @@ class DocumentController extends Controller
                 DB::raw('CASE WHEN favorites.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite')
             ])
             ->with(['category:id,name', 'versions:id,document_id,file_url,file_type,version_number'])
-            ->latest('documents.updated_at')
-            ->limit(50) // Limit to 50 most recent documents
+            ->limit(50) // Limit to 50 most recent/viewed documents
             ->get();
 
         return response()->json($documents);
@@ -147,19 +156,17 @@ class DocumentController extends Controller
         // In production, this should be properly authenticated
         $userId = $request->user() ? $request->user()->id : 1;
 
-        // Optimized favorites query with JOIN
         $documents = Document::select([
             'documents.id',
             'documents.title',
             'documents.description',
-            'documents.category_id',
             'documents.updated_at',
             DB::raw('1 as is_favorite')
         ])
             ->join('favorites', 'favorites.document_id', '=', 'documents.id')
             ->where('favorites.user_id', $userId)
-            ->with(['category:id,name', 'versions:id,document_id,file_url,file_type,version_number'])
             ->latest('documents.updated_at')
+            ->limit(100)
             ->get();
 
         return response()->json($documents);
