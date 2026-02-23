@@ -70,8 +70,8 @@ public class LoginActivity extends AppCompatActivity {
                     if (task.isSuccessful()) {
                         FirebaseUser user = mAuth.getCurrentUser();
                         if (user != null) {
-                            // 2. Get ID Token (use cached token for faster login)
-                            user.getIdToken(false).addOnCompleteListener(tokenTask -> {
+                            // 2. Get a fresh ID token so backend can verify and sync/create user
+                            user.getIdToken(true).addOnCompleteListener(tokenTask -> {
                                 if (tokenTask.isSuccessful()) {
                                     String idToken = tokenTask.getResult().getToken();
                                     syncWithBackend(idToken);
@@ -112,8 +112,19 @@ public class LoginActivity extends AppCompatActivity {
                     startActivity(intent);
                     finish();
                 } else {
-                    Toast.makeText(LoginActivity.this, "Backend sync failed: " + response.code(), Toast.LENGTH_SHORT)
-                            .show();
+                    String msg = "Backend sync failed: " + response.code();
+                    try {
+                        if (response.errorBody() != null) {
+                            String body = response.errorBody().string();
+                            int key = body.indexOf("\"message\":\"");
+                            if (key >= 0) {
+                                int start = key + 12;
+                                int end = body.indexOf("\"", start);
+                                if (end > start) msg = body.substring(start, end);
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                    Toast.makeText(LoginActivity.this, msg, Toast.LENGTH_LONG).show();
                 }
             }
 

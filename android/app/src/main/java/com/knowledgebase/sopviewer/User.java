@@ -8,7 +8,10 @@ public class User {
     private String full_name;
     private String email;
     private String firebase_uid;
+    private String phone;
+    private String job_title;
     private List<Role> roles;
+    private Department department;
 
     public int getId() {
         return id;
@@ -20,6 +23,14 @@ public class User {
 
     public String getFullName() {
         return full_name;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public String getJobTitle() {
+        return job_title;
     }
 
     public String getEmail() {
@@ -34,7 +45,24 @@ public class User {
         return roles;
     }
 
+    public Department getDepartment() {
+        return department;
+    }
+
     public static class Role {
+        private int id;
+        private String name;
+
+        public int getId() {
+            return id;
+        }
+
+        public String getName() {
+            return name;
+        }
+    }
+
+    public static class Department {
         private int id;
         private String name;
 

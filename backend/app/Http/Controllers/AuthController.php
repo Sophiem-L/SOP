@@ -116,4 +116,84 @@ class AuthController extends Controller
             ],
         ]);
     }
+
+    /**
+     * Update User Profile
+     */
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'sometimes|string|max:255',
+            'full_name' => 'sometimes|string|max:255',
+            'phone' => 'sometimes|string|max:20',
+            'job_title' => 'sometimes|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Build update data: allow empty string to clear optional fields (store as null)
+            $data = $request->only(['name', 'full_name', 'phone', 'job_title']);
+            $data = array_map(function ($v) {
+                return $v === '' ? null : $v;
+            }, $data);
+            $user->update($data);
+
+            // Update Firebase Display Name if 'name' is provided
+            if ($request->has('name')) {
+                try {
+                    $this->auth->updateUser($user->firebase_uid, [
+                        'displayName' => $request->name,
+                    ]);
+                } catch (\Exception $fe) {
+                    \Log::error("Firebase profile sync failed: " . $fe->getMessage());
+                    // We continue since local DB is updated
+                }
+            }
+
+            DB::commit();
+
+            // Return refreshed user with relations so client has full profile
+            $user->refresh();
+            $user->load(['department', 'roles']);
+
+            return response()->json([
+                'message' => 'Profile updated successfully',
+                'user' => $user
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Update failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Update password (sync to DB after client updates Firebase).
+     * Expects: { "new_password": "..." }
+     */
+    public function updatePassword(Request $request)
+    {
+        $user = $request->user();
+
+        $validator = Validator::make($request->all(), [
+            'new_password' => 'required|string|min:6|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->new_password),
+        ]);
+
+        return response()->json(['message' => 'Password updated successfully']);
+    }
 }

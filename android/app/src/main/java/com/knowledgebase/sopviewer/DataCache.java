@@ -1,25 +1,29 @@
 package com.knowledgebase.sopviewer;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Simple in-memory cache for API responses
  * Caches data for 2 minutes to reduce API calls during tab switching
  */
 public class DataCache {
-    private static DataCache instance;
+    private static volatile DataCache instance;
     private static final long CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
 
-    private Map<String, CacheEntry<?>> cache = new HashMap<>();
+    private final Map<String, CacheEntry<?>> cache = new ConcurrentHashMap<>();
 
     private DataCache() {
     }
 
     public static DataCache getInstance() {
         if (instance == null) {
-            instance = new DataCache();
+            synchronized (DataCache.class) {
+                if (instance == null) {
+                    instance = new DataCache();
+                }
+            }
         }
         return instance;
     }

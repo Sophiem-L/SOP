@@ -3,6 +3,8 @@ package com.knowledgebase.sopviewer;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
@@ -17,6 +19,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class SearchActivity extends AppCompatActivity {
 
@@ -27,7 +30,12 @@ public class SearchActivity extends AppCompatActivity {
     private BottomNavigationView bottomNav;
     private FirebaseAuth mAuth;
     private View emptyStateSearch;
-    private int pendingResponses = 0;
+    private final AtomicInteger pendingResponses = new AtomicInteger(0);
+
+    // Debounce for search
+    private final Handler debounceHandler = new Handler(Looper.getMainLooper());
+    private Runnable debounceRunnable;
+    private static final long DEBOUNCE_DELAY_MS = 400;
 
     // Filters
     private android.widget.LinearLayout quickFilterContainer;
@@ -292,14 +300,18 @@ public class SearchActivity extends AppCompatActivity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Cancel any pending search before scheduling a new one
+                if (debounceRunnable != null)
+                    debounceHandler.removeCallbacks(debounceRunnable);
                 String query = s.toString().trim();
-                if (query.isEmpty()) {
-                    // Show default results when search is empty
-                    showDefaultResults();
-                } else {
-                    // Perform search with query
-                    performSearch(query);
-                }
+                debounceRunnable = () -> {
+                    if (query.isEmpty()) {
+                        showDefaultResults();
+                    } else {
+                        performSearch(query);
+                    }
+                };
+                debounceHandler.postDelayed(debounceRunnable, DEBOUNCE_DELAY_MS);
             }
 
             @Override
@@ -341,7 +353,7 @@ public class SearchActivity extends AppCompatActivity {
     private void loadSearchResults(String token, String query, String sort) {
         searchResultsList.clear();
         searchAdapter.notifyDataSetChanged();
-        pendingResponses = 3; // Documents, Articles, SOPs
+        pendingResponses.set(3); // Documents, Articles, SOPs
         updateEmptyState(false); // Hide while loading
 
         // Fetch documents
@@ -356,13 +368,20 @@ public class SearchActivity extends AppCompatActivity {
                                         : "No description available";
                                 String date = "Updated: "
                                         + (doc.getUpdatedAt() != null ? doc.getUpdatedAt().substring(0, 10) : "N/A");
+                                String fileUrl = "", fileType = "", ver = "1.0.0";
+                                if (doc.getVersions() != null && !doc.getVersions().isEmpty()) {
+                                    DocumentVersion v = doc.getVersions().get(0);
+                                    fileUrl = v.getFileUrl() != null ? v.getFileUrl() : "";
+                                    fileType = v.getFileType() != null ? v.getFileType() : "";
+                                    ver = v.getVersionNumber() != null ? v.getVersionNumber() : "1.0.0";
+                                }
+                                String cat = (doc.getCategory() != null && doc.getCategory().getName() != null)
+                                        ? doc.getCategory().getName()
+                                        : "Uncategorized";
                                 searchResultsList.add(new RecentDoc(
-                                        doc.getId(),
-                                        doc.getTitle(),
-                                        description,
-                                        date,
-                                        R.drawable.file_logo,
-                                        doc.getIsFavorite() > 0));
+                                        doc.getId(), doc.getTitle(), description, date,
+                                        R.drawable.file_logo, doc.getIsFavorite() > 0,
+                                        fileUrl, fileType, cat, ver));
                             }
                             searchAdapter.notifyDataSetChanged();
                         }
@@ -383,12 +402,9 @@ public class SearchActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     for (Article article : response.body()) {
                         searchResultsList.add(new RecentDoc(
-                                article.getId(),
-                                article.getTitle(),
-                                article.getContent(),
-                                "Article",
-                                R.drawable.file_logo,
-                                false));
+                                article.getId(), article.getTitle(), article.getContent(),
+                                "Article", R.drawable.file_logo, false,
+                                "", "article", "Article", ""));
                     }
                     searchAdapter.notifyDataSetChanged();
                 }
@@ -409,12 +425,9 @@ public class SearchActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     for (Sop sop : response.body()) {
                         searchResultsList.add(new RecentDoc(
-                                sop.getId(),
-                                sop.getTitle(),
-                                sop.getSteps(),
-                                "SOP",
-                                R.drawable.file_logo,
-                                false));
+                                sop.getId(), sop.getTitle(), sop.getSteps(),
+                                "SOP", R.drawable.file_logo, false,
+                                "", "sop", "SOP", ""));
                     }
                     searchAdapter.notifyDataSetChanged();
                 }
@@ -430,8 +443,7 @@ public class SearchActivity extends AppCompatActivity {
     }
 
     private void decrementPendingResponses() {
-        pendingResponses--;
-        if (pendingResponses <= 0) {
+        if (pendingResponses.decrementAndGet() <= 0) {
             updateEmptyState(searchResultsList.isEmpty());
         }
     }

@@ -4,18 +4,36 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.TextView;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class ProfileActivity extends AppCompatActivity {
 
-    private TextView userName, userEmail, userRoleBadge, userPhone;
+    private TextView userName, userEmail, userRoleBadge, userPhone, userJobTitle, userDept;
     private View btnSettings, editProfileItem, changePasswordItem, manageDownloadsItem, viewActivityLogItem,
             notificationPrefsItem, logoutItem;
     private FirebaseAuth mAuth;
     private BottomNavigationView bottomNav;
+
+    private final ActivityResultLauncher<Intent> editProfileLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    // Show saved data immediately so name and phone are correct even before refetch
+                    Intent data = result.getData();
+                    if (data.hasExtra("name")) userName.setText(data.getStringExtra("name"));
+                    if (data.hasExtra("job_title")) userJobTitle.setText(data.getStringExtra("job_title"));
+                    if (data.hasExtra("phone")) userPhone.setText(data.getStringExtra("phone"));
+                    loadUserDataFromBackend();
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,6 +59,7 @@ public class ProfileActivity extends AppCompatActivity {
 
         // Load user data
         loadUserData();
+        loadUserDataFromBackend();
 
         // Setup click listeners
         setupClickListeners();
@@ -53,6 +72,8 @@ public class ProfileActivity extends AppCompatActivity {
         userName = findViewById(R.id.userName);
         userEmail = findViewById(R.id.userEmail);
         userPhone = findViewById(R.id.userPhone);
+        userJobTitle = findViewById(R.id.userJobTitle);
+        userDept = findViewById(R.id.userDept);
         userRoleBadge = findViewById(R.id.userRoleBadge);
 
         editProfileItem = findViewById(R.id.editProfileItem);
@@ -99,20 +120,62 @@ public class ProfileActivity extends AppCompatActivity {
         });
     }
 
+    private void loadUserDataFromBackend() {
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+        if (currentUser == null)
+            return;
+
+        currentUser.getIdToken(false).addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                String token = "Bearer " + task.getResult().getToken();
+                RetrofitClient.getApiService().getProfile(token).enqueue(new Callback<User>() {
+                    @Override
+                    public void onResponse(Call<User> call, Response<User> response) {
+                        if (response.isSuccessful() && response.body() != null) {
+                            User backendUser = response.body();
+                            updateUIWithBackendData(backendUser);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<User> call, Throwable t) {
+                        // Silent failure: keep current UI
+                    }
+                });
+            }
+        });
+    }
+
+    private void updateUIWithBackendData(User user) {
+        // Name: prefer full_name, then name
+        String displayName = (user.getFullName() != null && !user.getFullName().isEmpty())
+                ? user.getFullName()
+                : (user.getName() != null ? user.getName() : "");
+        userName.setText(displayName);
+        // Optional fields: show value or clear so we don't show stale data
+        userJobTitle.setText(user.getJobTitle() != null ? user.getJobTitle() : "");
+        userPhone.setText(user.getPhone() != null ? user.getPhone() : "");
+        if (user.getDepartment() != null && user.getDepartment().getName() != null)
+            userDept.setText(user.getDepartment().getName());
+        else
+            userDept.setText("");
+        // Role badge from first role if present
+        if (userRoleBadge != null) {
+            if (user.getRoles() != null && !user.getRoles().isEmpty() && user.getRoles().get(0).getName() != null)
+                userRoleBadge.setText(user.getRoles().get(0).getName());
+            else
+                userRoleBadge.setText("");
+        }
+    }
+
     private void loadUserData() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser != null) {
-            // Load user data from Firebase
             userName.setText(currentUser.getDisplayName() != null ? currentUser.getDisplayName() : "Group 8");
             userEmail.setText(currentUser.getEmail());
-            userPhone.setText("+1 (555) 123-4567");
-            userRoleBadge.setText("Manager");
-        } else {
-            // Fallback user data
-            userName.setText("Group 8");
-            userEmail.setText("john.doe@example.com");
-            userPhone.setText("+1 (555) 123-4567");
-            userRoleBadge.setText("Manager");
+            // TODO: Fetch full user info from backend including phone/job_title
+            // For now, these are static in the mockup, but EditProfile will update them
+            // locally once real API is used
         }
     }
 
@@ -122,15 +185,19 @@ public class ProfileActivity extends AppCompatActivity {
         });
 
         editProfileItem.setOnClickListener(v -> {
-            // TODO: Open edit profile
+            Intent intent = new Intent(this, EditProfileActivity.class);
+            intent.putExtra("name", userName.getText().toString());
+            intent.putExtra("job_title", userJobTitle.getText().toString());
+            intent.putExtra("phone", userPhone.getText().toString());
+            editProfileLauncher.launch(intent);
         });
 
         changePasswordItem.setOnClickListener(v -> {
-            // TODO: Open change password
+            startActivity(new Intent(this, ChangePasswordActivity.class));
         });
 
         manageDownloadsItem.setOnClickListener(v -> {
-            // TODO: Open downloads
+            startActivity(new Intent(this, ManageDownloadsActivity.class));
         });
 
         viewActivityLogItem.setOnClickListener(v -> {

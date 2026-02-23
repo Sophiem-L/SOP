@@ -2,6 +2,8 @@ package com.knowledgebase.sopviewer;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
@@ -37,6 +39,7 @@ public class MainActivity extends AppCompatActivity {
     private List<FolderDoc> folders = new ArrayList<>();
 
     private PagerSnapHelper snapHelper = new PagerSnapHelper();
+    private boolean pendingRefresh = false;
 
     // Search related views
     private View topBarArea;
@@ -51,6 +54,11 @@ public class MainActivity extends AppCompatActivity {
 
     // Pagination dots
     private View dot1, dot2;
+
+    // Debounce for home search
+    private final Handler searchDebounceHandler = new Handler(Looper.getMainLooper());
+    private Runnable searchDebounceRunnable;
+    private static final long SEARCH_DEBOUNCE_MS = 400;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -126,9 +134,8 @@ public class MainActivity extends AppCompatActivity {
             return false;
         });
 
-        findViewById(R.id.fab).setOnClickListener(v -> {
-            startActivity(new Intent(MainActivity.this, CreateDocumentActivity.class));
-        });
+        findViewById(R.id.fab).setOnClickListener(
+                v -> startActivityForResult(new Intent(MainActivity.this, CreateDocumentActivity.class), 1001));
 
         // Initialize Search Views
         topBarArea = findViewById(R.id.topBarArea);
@@ -182,8 +189,12 @@ public class MainActivity extends AppCompatActivity {
             bottomNav.setSelectedItemId(R.id.navigation_home);
         }
 
-        // Only fetch if not already loaded (saves unnecessary API calls)
-        if (!isDataLoaded) {
+        if (pendingRefresh) {
+            // A new document was just created — force a full refresh
+            pendingRefresh = false;
+            refreshData();
+        } else if (!isDataLoaded) {
+            // Initial load or previous load failed
             fetchDataFromBackend();
         }
     }
@@ -229,13 +240,22 @@ public class MainActivity extends AppCompatActivity {
                                 : "No description available";
                         String date = "Updated: "
                                 + (doc.getUpdatedAt() != null ? doc.getUpdatedAt().substring(0, 10) : "N/A");
+                        String fileUrl = "";
+                        String fileType = "";
+                        String version = "1.0.0";
+                        if (doc.getVersions() != null && !doc.getVersions().isEmpty()) {
+                            DocumentVersion v = doc.getVersions().get(0);
+                            fileUrl = v.getFileUrl() != null ? v.getFileUrl() : "";
+                            fileType = v.getFileType() != null ? v.getFileType() : "";
+                            version = v.getVersionNumber() != null ? v.getVersionNumber() : "1.0.0";
+                        }
+                        String category = (doc.getCategory() != null && doc.getCategory().getName() != null)
+                                ? doc.getCategory().getName()
+                                : "Uncategorized";
                         recentDocs.add(new RecentDoc(
-                                doc.getId(),
-                                doc.getTitle(),
-                                description,
-                                date,
-                                R.drawable.file_logo,
-                                doc.getIsFavorite() > 0));
+                                doc.getId(), doc.getTitle(), description, date,
+                                R.drawable.file_logo, doc.getIsFavorite() > 0,
+                                fileUrl, fileType, category, version));
                     }
                 }
                 completedCalls[0]++;
@@ -260,12 +280,9 @@ public class MainActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     for (Article article : response.body()) {
                         recentDocs.add(new RecentDoc(
-                                article.getId(),
-                                article.getTitle(),
-                                article.getContent(),
-                                "Static Article",
-                                R.drawable.file_logo,
-                                false));
+                                article.getId(), article.getTitle(), article.getContent(),
+                                "Article", R.drawable.file_logo, false,
+                                "", "article", "Article", ""));
                     }
                 }
                 completedCalls[0]++;
@@ -292,6 +309,17 @@ public class MainActivity extends AppCompatActivity {
         } else {
             // Update existing adapter (more efficient)
             recentAdapter.notifyDataSetChanged();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 1001 && resultCode == RESULT_OK) {
+            // Set a flag — let onResume (which fires right after) do the actual refresh.
+            // Calling refreshData() here AND in onResume caused a race condition where
+            // recentDocs was cleared twice mid-load and the new document never appeared.
+            pendingRefresh = true;
         }
     }
 
@@ -393,12 +421,16 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Cancel any in-flight debounce before queueing the next
+                if (searchDebounceRunnable != null)
+                    searchDebounceHandler.removeCallbacks(searchDebounceRunnable);
                 String query = s.toString().trim();
                 if (query.isEmpty()) {
                     showHomeContent();
                 } else {
                     showSearchResultContainer();
-                    performHomeSearch(query);
+                    searchDebounceRunnable = () -> performHomeSearch(query);
+                    searchDebounceHandler.postDelayed(searchDebounceRunnable, SEARCH_DEBOUNCE_MS);
                 }
             }
 
@@ -444,14 +476,23 @@ public class MainActivity extends AppCompatActivity {
                                 if (response.isSuccessful() && response.body() != null) {
                                     searchResultsList.clear();
                                     for (Document doc : response.body()) {
+                                        String fileUrl = "", fileType = "", ver = "1.0.0";
+                                        if (doc.getVersions() != null && !doc.getVersions().isEmpty()) {
+                                            DocumentVersion v = doc.getVersions().get(0);
+                                            fileUrl = v.getFileUrl() != null ? v.getFileUrl() : "";
+                                            fileType = v.getFileType() != null ? v.getFileType() : "";
+                                            ver = v.getVersionNumber() != null ? v.getVersionNumber() : "1.0.0";
+                                        }
+                                        String cat = (doc.getCategory() != null && doc.getCategory().getName() != null)
+                                                ? doc.getCategory().getName()
+                                                : "Uncategorized";
                                         searchResultsList.add(new RecentDoc(
-                                                doc.getId(),
-                                                doc.getTitle(),
+                                                doc.getId(), doc.getTitle(),
                                                 doc.getDescription() != null ? doc.getDescription() : "No description",
                                                 doc.getUpdatedAt() != null ? doc.getUpdatedAt().substring(0, 10)
                                                         : "N/A",
-                                                R.drawable.file_logo,
-                                                doc.getIsFavorite() > 0));
+                                                R.drawable.file_logo, doc.getIsFavorite() > 0,
+                                                fileUrl, fileType, cat, ver));
                                     }
                                     searchAdapter.notifyDataSetChanged();
                                     tvNoResults.setVisibility(searchResultsList.isEmpty() ? View.VISIBLE : View.GONE);

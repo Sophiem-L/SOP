@@ -11,28 +11,32 @@ class ApiController extends Controller
 {
     public function getArticles(Request $request)
     {
-        $query = Article::query();
-        if ($request->has('q')) {
+        $query = Article::select(['id', 'title', 'content', 'updated_at']);
+
+        if ($request->filled('q')) {
             $search = $request->query('q');
-            $query->where('title', 'like', '%' . $search . '%')
-                ->orWhere('content', 'like', '%' . $search . '%');
+            // Wrapped in closure so OR doesn't escape future WHERE conditions
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', '%' . $search . '%')
+                    ->orWhere('content', 'like', '%' . $search . '%');
+            });
         }
 
-        $query->orderByDesc('updated_at');
-        return response()->json($query->get());
+        return response()->json($query->orderByDesc('updated_at')->limit(50)->get());
     }
 
     public function getSops(Request $request)
     {
-        $query = Sop::query();
-        if ($request->has('q')) {
+        $query = Sop::select(['id', 'title', 'steps', 'department', 'updated_at']);
+
+        if ($request->filled('q')) {
             $search = $request->query('q');
-            $query->where('title', 'like', '%' . $search . '%')
-                ->orWhere('steps', 'like', '%' . $search . '%');
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', '%' . $search . '%')
+                    ->orWhere('steps', 'like', '%' . $search . '%');
+            });
         }
 
-        $query->orderByDesc('updated_at');
-
-        return response()->json($query->get());
+        return response()->json($query->orderByDesc('updated_at')->limit(50)->get());
     }
 }

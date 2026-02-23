@@ -7,7 +7,14 @@
       "Bash(adb logcat:*)",
       "Bash(gradlew clean:*)",
       "Bash(.gradlew.bat:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(find:*)",
+      "Bash(php:*)",
+      "Bash(php.exe:*)",
+      "Bash(where:*)",
+      "Bash(/c/xampp/php/php.exe:*)",
+      "Bash(\"c:/xampp/php/php.exe\" artisan storage:link:*)",
+      "Bash(\"c:/xampp/php/php.exe\" artisan route:list:*)"
     ]
   }
 }

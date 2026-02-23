@@ -33,7 +33,7 @@ Route::middleware(['firebase.auth'])->group(function () {
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
 
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        return $request->user()->load(['department', 'roles']);
     });
 
     // Documents
@@ -41,6 +41,8 @@ Route::middleware(['firebase.auth'])->group(function () {
     Route::post('/documents', [DocumentController::class, 'store']);
     Route::get('/documents/favorites', [DocumentController::class, 'favorites']);
     Route::post('/documents/{id}/favorite', [DocumentController::class, 'toggleFavorite']);
+    Route::post('/user/update', [AuthController::class, 'updateProfile']);
+    Route::post('/user/update-password', [AuthController::class, 'updatePassword']);
 });
 
 // Public routes (no Firebase auth required)

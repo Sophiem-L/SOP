@@ -81,27 +81,26 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
         });
 
         // Make the entire item clickable
-        holder.itemView.setOnClickListener(v -> {
-            android.content.Intent intent = new android.content.Intent(holder.itemView.getContext(),
-                    DocumentDetailActivity.class);
-            intent.putExtra("id", doc.getId());
-            intent.putExtra("title", doc.getTitle());
-            intent.putExtra("description", doc.getDescription());
-            intent.putExtra("date", doc.getDate());
-            holder.itemView.getContext().startActivity(intent);
-        });
+        holder.itemView.setOnClickListener(v ->
+                openDetail(holder.itemView.getContext(), doc));
 
         if (holder.btnView != null) {
-            holder.btnView.setOnClickListener(v -> {
-                android.content.Intent intent = new android.content.Intent(holder.itemView.getContext(),
-                        DocumentDetailActivity.class);
-                intent.putExtra("id", doc.getId());
-                intent.putExtra("title", doc.getTitle());
-                intent.putExtra("description", doc.getDescription());
-                intent.putExtra("date", doc.getDate());
-                holder.itemView.getContext().startActivity(intent);
-            });
+            holder.btnView.setOnClickListener(v ->
+                    openDetail(holder.itemView.getContext(), doc));
         }
+    }
+
+    private void openDetail(android.content.Context context, RecentDoc doc) {
+        android.content.Intent intent = new android.content.Intent(context, DocumentDetailActivity.class);
+        intent.putExtra("id", doc.getId());
+        intent.putExtra("title", doc.getTitle());
+        intent.putExtra("description", doc.getDescription());
+        intent.putExtra("date", doc.getDate());
+        intent.putExtra("file_url", doc.getFileUrl());
+        intent.putExtra("file_type", doc.getFileType());
+        intent.putExtra("category", doc.getCategory());
+        intent.putExtra("version", doc.getVersion());
+        context.startActivity(intent);
     }
 
     private void updateFavoriteIcon(ViewHolder holder, RecentDoc doc) {

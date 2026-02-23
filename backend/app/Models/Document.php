@@ -27,7 +27,8 @@ class Document extends Model
 
     public function versions()
     {
-        return $this->hasMany(DocumentVersion::class);
+        // Latest version first — Android's getVersions().get(0) always returns the newest
+        return $this->hasMany(DocumentVersion::class)->orderByDesc('id');
     }
 
     public function access()

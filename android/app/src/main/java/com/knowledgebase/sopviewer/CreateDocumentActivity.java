@@ -39,18 +39,31 @@ import retrofit2.Response;
 
 public class CreateDocumentActivity extends AppCompatActivity {
 
+    // PDF file details
     private LinearLayout layoutFileDetails;
     private TextView txtFileName, txtProgressPercent, txtFileSize;
     private ProgressBar progressBar;
 
-    private final ActivityResultLauncher<Intent> filePickerLauncher = registerForActivityResult(
+    // DOC file details
+    private LinearLayout layoutDocFileDetails;
+    private TextView txtDocFileName, txtDocProgressPercent, txtDocFileSize;
+    private ProgressBar progressBarDoc;
+
+    private final ActivityResultLauncher<Intent> pdfPickerLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                     Uri uri = result.getData().getData();
-                    if (uri != null) {
-                        handleFileSelection(uri);
-                    }
+                    if (uri != null) handlePdfSelection(uri);
+                }
+            });
+
+    private final ActivityResultLauncher<Intent> docPickerLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    Uri uri = result.getData().getData();
+                    if (uri != null) handleDocSelection(uri);
                 }
             });
 
@@ -58,11 +71,12 @@ public class CreateDocumentActivity extends AppCompatActivity {
     private ImageView imgPdf, imgHtml;
     private TextView txtPdf, txtHtml;
     private View sectionPdfUpload, sectionHtmlEditor;
-    private EditText editTitle, editDocumentContent, editVersion;
+    private EditText editTitle, editVersion, editNewCategory;
     private TextView textPublishedDate;
     private Spinner spinnerCategory;
     private final Calendar calendar = Calendar.getInstance();
-    private Uri selectedFileUri;
+    private Uri selectedPdfUri;
+    private Uri selectedDocUri;
     private boolean isPdfMode = true;
     private List<Category> categories = new ArrayList<>();
 
@@ -82,44 +96,50 @@ public class CreateDocumentActivity extends AppCompatActivity {
 
         btnTypePdf.setOnClickListener(v -> updateDocumentTypeUI(true));
         btnTypeHtml.setOnClickListener(v -> updateDocumentTypeUI(false));
-
-        // Initial state
         updateDocumentTypeUI(true);
 
+        // PDF file details
         layoutFileDetails = findViewById(R.id.layoutFileDetails);
         txtFileName = findViewById(R.id.txtFileName);
         txtProgressPercent = findViewById(R.id.txtProgressPercent);
         txtFileSize = findViewById(R.id.txtFileSize);
         progressBar = findViewById(R.id.progressBar);
 
+        // DOC file details
+        layoutDocFileDetails = findViewById(R.id.layoutDocFileDetails);
+        txtDocFileName = findViewById(R.id.txtDocFileName);
+        txtDocProgressPercent = findViewById(R.id.txtDocProgressPercent);
+        txtDocFileSize = findViewById(R.id.txtDocFileSize);
+        progressBarDoc = findViewById(R.id.progressBarDoc);
+
         TextView btnCancel = findViewById(R.id.btnCancel);
         btnCancel.setOnClickListener(v -> finish());
 
+        // PDF browse
         findViewById(R.id.btnBrowseFiles).setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
             intent.setType("application/pdf");
-            filePickerLauncher.launch(intent);
+            pdfPickerLauncher.launch(intent);
+        });
+
+        // DOC browse
+        findViewById(R.id.btnBrowseDocFiles).setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+            intent.setType("*/*");
+            intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                    "application/msword",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            });
+            docPickerLauncher.launch(intent);
         });
 
         editTitle = findViewById(R.id.editTitle);
-        editDocumentContent = findViewById(R.id.editDocumentContent);
         editVersion = findViewById(R.id.editVersion);
         textPublishedDate = findViewById(R.id.textPublishedDate);
         spinnerCategory = findViewById(R.id.spinnerCategory);
+        editNewCategory = findViewById(R.id.editNewCategory);
 
         findViewById(R.id.containerPublishedDate).setOnClickListener(v -> showDatePickerDialog());
-
-        // Initialize with default categories immediately so it's not empty
-        categories.clear();
-        categories.add(new Category("Select Category"));
-        categories.add(new Category("Policies"));
-        categories.add(new Category("HR Document"));
-        categories.add(new Category("Security"));
-        categories.add(new Category("Finance"));
-        categories.add(new Category("Management"));
-        updateCategoryAdapter();
-
-        setupHtmlToolbar();
 
         fetchCategories();
 
@@ -127,14 +147,12 @@ public class CreateDocumentActivity extends AppCompatActivity {
         btnPublish.setOnClickListener(v -> publishDocument());
 
         Button btnSaveDraft = findViewById(R.id.btnSaveDraft);
-        btnSaveDraft.setOnClickListener(v -> {
-            Toast.makeText(this, "Draft Saved", Toast.LENGTH_SHORT).show();
-        });
+        btnSaveDraft.setOnClickListener(v ->
+                Toast.makeText(this, "Draft Saved", Toast.LENGTH_SHORT).show());
 
         Button btnPreview = findViewById(R.id.btnPreview);
-        btnPreview.setOnClickListener(v -> {
-            Toast.makeText(this, "Opening Preview...", Toast.LENGTH_SHORT).show();
-        });
+        btnPreview.setOnClickListener(v ->
+                Toast.makeText(this, "Opening Preview...", Toast.LENGTH_SHORT).show());
     }
 
     private void fetchCategories() {
@@ -146,32 +164,35 @@ public class CreateDocumentActivity extends AppCompatActivity {
                     RetrofitClient.getApiService().getCategories(idToken).enqueue(new Callback<List<Category>>() {
                         @Override
                         public void onResponse(Call<List<Category>> call, Response<List<Category>> response) {
-                            if (response.isSuccessful() && response.body() != null) {
+                            if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                                 categories.clear();
                                 categories.add(new Category("Select Category"));
                                 categories.addAll(response.body());
                                 updateCategoryAdapter();
+                                spinnerCategory.setVisibility(View.VISIBLE);
+                                editNewCategory.setVisibility(View.GONE);
                             } else {
-                                Toast.makeText(CreateDocumentActivity.this, "Server error: " + response.code(),
-                                        Toast.LENGTH_SHORT)
-                                        .show();
+                                spinnerCategory.setVisibility(View.GONE);
+                                editNewCategory.setVisibility(View.VISIBLE);
                             }
                         }
 
                         @Override
                         public void onFailure(Call<List<Category>> call, Throwable t) {
-                            Toast.makeText(CreateDocumentActivity.this, "Network error: " + t.getMessage(),
-                                    Toast.LENGTH_SHORT)
-                                    .show();
+                            spinnerCategory.setVisibility(View.GONE);
+                            editNewCategory.setVisibility(View.VISIBLE);
                         }
                     });
                 }
             });
+        } else {
+            spinnerCategory.setVisibility(View.GONE);
+            editNewCategory.setVisibility(View.VISIBLE);
         }
     }
 
     private void updateCategoryAdapter() {
-        ArrayAdapter<Category> adapter = new ArrayAdapter<>(CreateDocumentActivity.this,
+        ArrayAdapter<Category> adapter = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, categories);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCategory.setAdapter(adapter);
@@ -184,46 +205,50 @@ public class CreateDocumentActivity extends AppCompatActivity {
             return;
         }
 
-        Category selectedCategory = (Category) spinnerCategory.getSelectedItem();
         String categoryId = "";
-        if (selectedCategory != null && selectedCategory.getId() > 0) {
-            categoryId = String.valueOf(selectedCategory.getId());
-        }
-
-        RequestBody titlePart = RequestBody.create(MediaType.parse("text/plain"), title);
-        RequestBody typePart = RequestBody.create(MediaType.parse("text/plain"), isPdfMode ? "pdf" : "html");
-        RequestBody categoryIdPart = RequestBody.create(MediaType.parse("text/plain"), categoryId);
-
-        MultipartBody.Part filePart = null;
-        RequestBody contentPart = null;
-
-        if (isPdfMode) {
-            if (selectedFileUri == null) {
-                Toast.makeText(this, "Please select a PDF file", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            try {
-                InputStream inputStream = getContentResolver().openInputStream(selectedFileUri);
-                byte[] bytes = getBytes(inputStream);
-                RequestBody requestFile = RequestBody.create(MediaType.parse("application/pdf"), bytes);
-                filePart = MultipartBody.Part.createFormData("file", "document.pdf", requestFile);
-                contentPart = RequestBody.create(MediaType.parse("text/plain"), "");
-            } catch (IOException e) {
-                e.printStackTrace();
+        String categoryName = "";
+        if (editNewCategory.getVisibility() == View.VISIBLE) {
+            categoryName = editNewCategory.getText().toString().trim();
+            if (categoryName.isEmpty()) {
+                editNewCategory.setError("Category name is required");
                 return;
             }
         } else {
-            String content = editDocumentContent.getText().toString().trim();
-            if (content.isEmpty()) {
-                editDocumentContent.setError("Content is required");
-                return;
+            Category selectedCategory = (Category) spinnerCategory.getSelectedItem();
+            if (selectedCategory != null && selectedCategory.getId() > 0) {
+                categoryId = String.valueOf(selectedCategory.getId());
             }
-            contentPart = RequestBody.create(MediaType.parse("text/plain"), content);
-            // filePart remains null for HTML
         }
 
-        final MultipartBody.Part finalFilePart = filePart;
-        final RequestBody finalContentPart = contentPart;
+        Uri selectedFileUri = isPdfMode ? selectedPdfUri : selectedDocUri;
+        if (selectedFileUri == null) {
+            Toast.makeText(this,
+                    isPdfMode ? "Please select a PDF file" : "Please select a DOC file",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        byte[] fileBytes;
+        try {
+            InputStream inputStream = getContentResolver().openInputStream(selectedFileUri);
+            fileBytes = getBytes(inputStream);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        String mimeType = isPdfMode ? "application/pdf"
+                : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        String fileName = isPdfMode ? "document.pdf" : "document.docx";
+        String type = isPdfMode ? "pdf" : "doc";
+
+        RequestBody titlePart = RequestBody.create(MediaType.parse("text/plain"), title);
+        RequestBody typePart = RequestBody.create(MediaType.parse("text/plain"), type);
+        RequestBody categoryIdPart = RequestBody.create(MediaType.parse("text/plain"), categoryId);
+        RequestBody categoryNamePart = RequestBody.create(MediaType.parse("text/plain"), categoryName);
+        RequestBody contentPart = RequestBody.create(MediaType.parse("text/plain"), "");
+        RequestBody requestFile = RequestBody.create(MediaType.parse(mimeType), fileBytes);
+        MultipartBody.Part filePart = MultipartBody.Part.createFormData("file", fileName, requestFile);
 
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user != null) {
@@ -231,26 +256,26 @@ public class CreateDocumentActivity extends AppCompatActivity {
                 if (task.isSuccessful()) {
                     String idToken = "Bearer " + task.getResult().getToken();
                     RetrofitClient.getApiService()
-                            .createDocument(idToken, titlePart, typePart, categoryIdPart, finalContentPart,
-                                    finalFilePart)
+                            .createDocument(idToken, titlePart, typePart, categoryIdPart,
+                                    categoryNamePart, contentPart, filePart)
                             .enqueue(new Callback<ResponseBody>() {
                                 @Override
                                 public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
                                     if (response.isSuccessful()) {
-                                        Toast.makeText(CreateDocumentActivity.this, "Document Published Successfully",
-                                                Toast.LENGTH_SHORT).show();
+                                        Toast.makeText(CreateDocumentActivity.this,
+                                                "Document Published Successfully", Toast.LENGTH_SHORT).show();
+                                        setResult(RESULT_OK);
                                         finish();
                                     } else {
-                                        Toast.makeText(CreateDocumentActivity.this, "Failed: " + response.code(),
-                                                Toast.LENGTH_SHORT).show();
+                                        Toast.makeText(CreateDocumentActivity.this,
+                                                "Failed: " + response.code(), Toast.LENGTH_SHORT).show();
                                     }
                                 }
 
                                 @Override
                                 public void onFailure(Call<ResponseBody> call, Throwable t) {
-                                    Toast.makeText(CreateDocumentActivity.this, "Error: " + t.getMessage(),
-                                            Toast.LENGTH_SHORT)
-                                            .show();
+                                    Toast.makeText(CreateDocumentActivity.this,
+                                            "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
                                 }
                             });
                 }
@@ -258,71 +283,21 @@ public class CreateDocumentActivity extends AppCompatActivity {
         }
     }
 
-    private void setupHtmlToolbar() {
-        findViewById(R.id.imgFormatHeading).setOnClickListener(v -> wrapSelection("<h1>", "</h1>"));
-        findViewById(R.id.imgFormatBold).setOnClickListener(v -> wrapSelection("<b>", "</b>"));
-        findViewById(R.id.imgFormatItalic).setOnClickListener(v -> wrapSelection("<i>", "</i>"));
-        findViewById(R.id.imgFormatList).setOnClickListener(v -> wrapSelection("<ul>\n  <li>", "</li>\n</ul>"));
-        findViewById(R.id.imgFormatLink).setOnClickListener(v -> wrapSelection("<a href=\"\">", "</a>"));
-        findViewById(R.id.imgFormatImage)
-                .setOnClickListener(v -> wrapSelection("<img src=\"", "\" alt=\"description\" />"));
-        findViewById(R.id.imgFormatTable).setOnClickListener(v -> {
-            String tableHtml = "\n<table border=\"1\">\n" +
-                    "  <tr>\n" +
-                    "    <td>Cell 1</td>\n" +
-                    "    <td>Cell 2</td>\n" +
-                    "  </tr>\n" +
-                    "</table>\n";
-            insertAtCursor(tableHtml);
-        });
-    }
-
     private void showDatePickerDialog() {
         new DatePickerDialog(this, (view, year, month, dayOfMonth) -> {
             calendar.set(Calendar.YEAR, year);
             calendar.set(Calendar.MONTH, month);
             calendar.set(Calendar.DAY_OF_MONTH, dayOfMonth);
-            updateDateLabel();
-        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show();
-    }
-
-    private void updateDateLabel() {
-        String myFormat = "MMM dd, yyyy";
-        SimpleDateFormat sdf = new SimpleDateFormat(myFormat, Locale.US);
-        textPublishedDate.setText(sdf.format(calendar.getTime()));
-    }
-
-    private void wrapSelection(String startTag, String endTag) {
-        int start = editDocumentContent.getSelectionStart();
-        int end = editDocumentContent.getSelectionEnd();
-        String text = editDocumentContent.getText().toString();
-
-        if (start != end) {
-            String selectedText = text.substring(start, end);
-            String newText = text.substring(0, start) + startTag + selectedText + endTag + text.substring(end);
-            editDocumentContent.setText(newText);
-            editDocumentContent.setSelection(start + startTag.length() + selectedText.length() + endTag.length());
-        } else {
-            String newText = text.substring(0, start) + startTag + endTag + text.substring(end);
-            editDocumentContent.setText(newText);
-            editDocumentContent.setSelection(start + startTag.length());
-        }
-    }
-
-    private void insertAtCursor(String textToInsert) {
-        int start = editDocumentContent.getSelectionStart();
-        int end = editDocumentContent.getSelectionEnd();
-        String text = editDocumentContent.getText().toString();
-
-        String newText = text.substring(0, Math.min(start, end)) + textToInsert + text.substring(Math.max(start, end));
-        editDocumentContent.setText(newText);
-        editDocumentContent.setSelection(start + textToInsert.length());
+            String myFormat = "MMM dd, yyyy";
+            SimpleDateFormat sdf = new SimpleDateFormat(myFormat, Locale.US);
+            textPublishedDate.setText(sdf.format(calendar.getTime()));
+        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)).show();
     }
 
     private byte[] getBytes(InputStream inputStream) throws IOException {
         ByteArrayOutputStream byteBuffer = new ByteArrayOutputStream();
-        int bufferSize = 1024;
-        byte[] buffer = new byte[bufferSize];
+        byte[] buffer = new byte[1024];
         int len;
         while ((len = inputStream.read(buffer)) != -1) {
             byteBuffer.write(buffer, 0, len);
@@ -368,34 +343,57 @@ public class CreateDocumentActivity extends AppCompatActivity {
         }
     }
 
-    private void handleFileSelection(Uri uri) {
-        this.selectedFileUri = uri;
-        String fileName = "Unknown";
-        long fileSize = 0;
-
-        Cursor cursor = getContentResolver().query(uri, null, null, null, null);
-        if (cursor != null && cursor.moveToFirst()) {
-            int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-            int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
-            if (nameIndex != -1)
-                fileName = cursor.getString(nameIndex);
-            if (sizeIndex != -1)
-                fileSize = cursor.getLong(sizeIndex);
-            cursor.close();
-        }
+    private void handlePdfSelection(Uri uri) {
+        this.selectedPdfUri = uri;
+        String fileName = getFileName(uri);
+        long fileSize = getFileSize(uri);
 
         layoutFileDetails.setVisibility(View.VISIBLE);
         txtFileName.setText(fileName);
-
-        // Mock progress for UI demonstration
         progressBar.setProgress(100);
         txtProgressPercent.setText("100%");
-
-        String sizeText = String.format("%.1f MB of 5 MB", fileSize / (1024.0 * 1024.0));
-        txtFileSize.setText(sizeText);
+        txtFileSize.setText(String.format("%.1f MB of 5 MB", fileSize / (1024.0 * 1024.0)));
 
         if (fileSize > 5 * 1024 * 1024) {
             Toast.makeText(this, "File too large! Max 5MB.", Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void handleDocSelection(Uri uri) {
+        this.selectedDocUri = uri;
+        String fileName = getFileName(uri);
+        long fileSize = getFileSize(uri);
+
+        layoutDocFileDetails.setVisibility(View.VISIBLE);
+        txtDocFileName.setText(fileName);
+        progressBarDoc.setProgress(100);
+        txtDocProgressPercent.setText("100%");
+        txtDocFileSize.setText(String.format("%.1f MB of 5 MB", fileSize / (1024.0 * 1024.0)));
+
+        if (fileSize > 5 * 1024 * 1024) {
+            Toast.makeText(this, "File too large! Max 5MB.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private String getFileName(Uri uri) {
+        String fileName = "Unknown";
+        Cursor cursor = getContentResolver().query(uri, null, null, null, null);
+        if (cursor != null && cursor.moveToFirst()) {
+            int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+            if (nameIndex != -1) fileName = cursor.getString(nameIndex);
+            cursor.close();
+        }
+        return fileName;
+    }
+
+    private long getFileSize(Uri uri) {
+        long fileSize = 0;
+        Cursor cursor = getContentResolver().query(uri, null, null, null, null);
+        if (cursor != null && cursor.moveToFirst()) {
+            int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
+            if (sizeIndex != -1) fileSize = cursor.getLong(sizeIndex);
+            cursor.close();
+        }
+        return fileSize;
     }
 }

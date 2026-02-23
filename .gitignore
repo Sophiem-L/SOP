@@ -76,6 +76,9 @@ backend/npm-debug.log
 backend/yarn-error.log
 backend/docker-compose.override.yml
 
+*.json
+backend/*firebase-adminsdk*.json
+backend\sop-project-d7f89-firebase-adminsdk-fbsvc-79f66efa80.json
 # Laravel specific
 backend/storage/framework/cache/*
 backend/storage/framework/sessions/*

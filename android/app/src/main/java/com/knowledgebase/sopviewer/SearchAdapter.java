@@ -37,7 +37,8 @@ public class SearchAdapter extends RecyclerView.Adapter<SearchAdapter.ViewHolder
         // Set tag text (using description prefix or static for now, ideally add tag
         // field to RecentDoc)
         // For now, let's infer tag or set a default if not present
-        holder.tag.setText("PDF Document"); // Default or infer from doc type
+        String type = doc.getFileType() != null && !doc.getFileType().isEmpty() ? doc.getFileType().toUpperCase() + " Document" : "Document";
+        holder.tag.setText(type);
 
         // holder.image.setImageResource(doc.getImageResId()); // Removed in new layout
 
@@ -63,6 +64,10 @@ public class SearchAdapter extends RecyclerView.Adapter<SearchAdapter.ViewHolder
             intent.putExtra("title", doc.getTitle());
             intent.putExtra("description", doc.getDescription());
             intent.putExtra("date", doc.getDate());
+            intent.putExtra("file_url", doc.getFileUrl());
+            intent.putExtra("file_type", doc.getFileType());
+            intent.putExtra("category", doc.getCategory());
+            intent.putExtra("version", doc.getVersion());
             holder.itemView.getContext().startActivity(intent);
         });
     }

@@ -126,13 +126,20 @@ public class BookmarksActivity extends AppCompatActivity {
                                     String date = "Updated: "
                                             + (doc.getUpdatedAt() != null ? doc.getUpdatedAt().substring(0, 10)
                                                     : "N/A");
+                                    String fileUrl = "", fileType = "", version = "1.0.0";
+                                    if (doc.getVersions() != null && !doc.getVersions().isEmpty()) {
+                                        DocumentVersion v = doc.getVersions().get(0);
+                                        fileUrl = v.getFileUrl() != null ? v.getFileUrl() : "";
+                                        fileType = v.getFileType() != null ? v.getFileType() : "";
+                                        version = v.getVersionNumber() != null ? v.getVersionNumber() : "1.0.0";
+                                    }
+                                    String category = (doc.getCategory() != null && doc.getCategory().getName() != null)
+                                            ? doc.getCategory().getName()
+                                            : "Uncategorized";
                                     bookmarkDocs.add(new RecentDoc(
-                                            doc.getId(),
-                                            doc.getTitle(),
-                                            description,
-                                            date,
-                                            R.drawable.file_logo,
-                                            doc.getIsFavorite() > 0));
+                                            doc.getId(), doc.getTitle(), description, date,
+                                            R.drawable.file_logo, doc.getIsFavorite() > 0,
+                                            fileUrl, fileType, category, version));
                                 }
 
                                 // Cache the bookmarks
@@ -164,9 +171,15 @@ public class BookmarksActivity extends AppCompatActivity {
         } else {
             emptyState.setVisibility(View.GONE);
             recyclerBookmarks.setVisibility(View.VISIBLE);
-            bookmarkAdapter = new RecentAdapter(docs, token);
-            recyclerBookmarks.setLayoutManager(new LinearLayoutManager(this));
-            recyclerBookmarks.setAdapter(bookmarkAdapter);
+            if (bookmarkAdapter == null) {
+                // Create adapter and layout manager only once
+                bookmarkAdapter = new RecentAdapter(docs, token);
+                recyclerBookmarks.setLayoutManager(new LinearLayoutManager(this));
+                recyclerBookmarks.setAdapter(bookmarkAdapter);
+            } else {
+                // Reuse existing adapter — update its data in-place
+                bookmarkAdapter.notifyDataSetChanged();
+            }
         }
     }
 }

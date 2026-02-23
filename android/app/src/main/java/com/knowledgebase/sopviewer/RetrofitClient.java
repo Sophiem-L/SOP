@@ -7,22 +7,26 @@ import java.util.concurrent.TimeUnit;
 
 public class RetrofitClient {
     private static final String BASE_URL = "http://10.0.2.2:8000/"; // Use 10.0.2.2 for Android Emulator
-    private static Retrofit retrofit = null;
+    private static volatile Retrofit retrofit = null;
 
     public static ApiService getApiService() {
         if (retrofit == null) {
-            // Configure OkHttpClient with timeouts
-            OkHttpClient okHttpClient = new OkHttpClient.Builder()
-                    .connectTimeout(10, TimeUnit.SECONDS) // Connection timeout
-                    .readTimeout(15, TimeUnit.SECONDS)    // Read timeout
-                    .writeTimeout(15, TimeUnit.SECONDS)   // Write timeout
-                    .build();
+            synchronized (RetrofitClient.class) {
+                if (retrofit == null) {
+                    // Configure OkHttpClient with timeouts
+                    OkHttpClient okHttpClient = new OkHttpClient.Builder()
+                            .connectTimeout(30, TimeUnit.SECONDS)
+                            .readTimeout(60, TimeUnit.SECONDS)
+                            .writeTimeout(120, TimeUnit.SECONDS) // 2 min — needed for large file uploads
+                            .build();
 
-            retrofit = new Retrofit.Builder()
-                    .baseUrl(BASE_URL)
-                    .client(okHttpClient)
-                    .addConverterFactory(GsonConverterFactory.create())
-                    .build();
+                    retrofit = new Retrofit.Builder()
+                            .baseUrl(BASE_URL)
+                            .client(okHttpClient)
+                            .addConverterFactory(GsonConverterFactory.create())
+                            .build();
+                }
+            }
         }
         return retrofit.create(ApiService.class);
     }
