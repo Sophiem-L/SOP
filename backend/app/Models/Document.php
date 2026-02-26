@@ -9,10 +9,14 @@ class Document extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'description', 'category_id', 'created_by', 'is_active'];
+    protected $fillable = ['title', 'description', 'category_id', 'created_by', 'is_active','status',
+        'reviewed_by',
+        'reviewed_at'];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'status' => 'integer',
+        'reviewed_at' => 'datetime',
     ];
 
     public function category()
@@ -39,5 +43,19 @@ class Document extends Model
     public function favorites()
     {
         return $this->hasMany(Favorite::class);
+    }
+    public function reviewer()
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+    public function getStatusLabelAttribute()
+    {
+        return match($this->status) {
+            0 => 'Private',
+            1 => 'Public',
+            2 => 'Approved',
+            3 => 'Rejected',
+            default => 'Unknown',
+        };
     }
 }

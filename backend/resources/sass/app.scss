@@ -1,0 +1,14 @@
+// This pulls in all Bootstrap classes like d-flex, card, and col-md-4
+@import '~bootstrap/scss/bootstrap';
+
+// These are your custom "Fincheck" gradients
+.bg-fincheck-blue { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+.bg-fincheck-purple { background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); }
+.bg-fincheck-pink { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+
+.sidebar {
+    min-width: 250px;
+    height: 100vh;
+    background: #fff;
+    border-right: 1px solid #eee;
+}
