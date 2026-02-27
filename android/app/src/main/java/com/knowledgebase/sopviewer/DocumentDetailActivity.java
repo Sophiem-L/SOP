@@ -109,26 +109,33 @@ public class DocumentDetailActivity extends AppCompatActivity {
         ProgressBar pdfLoadingBar = findViewById(R.id.pdfLoadingBar);
         LinearLayout pdfPagesContainer = findViewById(R.id.pdfPagesContainer);
         TextView pdfErrorText = findViewById(R.id.pdfErrorText);
+
         LinearLayout docViewerContainer = findViewById(R.id.docViewerContainer);
-        ProgressBar docLoadingBar = findViewById(R.id.docLoadingBar);
-        TextView docStatusText = findViewById(R.id.docStatusText);
+        TextView docFileName = findViewById(R.id.docFileName);
+        TextView docFileSubtitle = findViewById(R.id.docFileSubtitle);
         MaterialButton btnOpenDoc = findViewById(R.id.btnOpenDoc);
 
         boolean isPdf = "pdf".equalsIgnoreCase(fileType);
         final boolean hasPdf = isPdf && !resolvedFileUrl.isEmpty();
-        final boolean hasDoc = !isPdf && !resolvedFileUrl.isEmpty();
+        boolean isDoc = ("doc".equalsIgnoreCase(fileType) || "docx".equalsIgnoreCase(fileType))
+                && !resolvedFileUrl.isEmpty();
 
-        // Show the preview container immediately so the loading spinner is visible
-        // right away — the actual content loads asynchronously after the token is fetched.
         if (hasPdf) {
             pdfContainer.setVisibility(View.VISIBLE);
-        } else if (hasDoc) {
+        } else if (isDoc) {
+            // Show a file card — user must download to view the DOC/DOCX
             docViewerContainer.setVisibility(View.VISIBLE);
+            String displayName = (title != null && !title.isEmpty()) ? title : "Document";
+            docFileName.setText(displayName + "." + fileType.toLowerCase());
+            docFileSubtitle.setText("docx".equalsIgnoreCase(fileType) ? "Word Document (DOCX)" : "Word Document (DOC)");
+            final String fFileType = fileType;
+            final String fTitle = title;
+            final String fDesc = description;
+            btnOpenDoc.setOnClickListener(v ->
+                    DownloadHelper.download(this, resolvedFileUrl, fTitle, fFileType, fDesc));
         }
 
-        if ((hasPdf || hasDoc) && docId != -1) {
-            // Use the authenticated streaming endpoint instead of the raw storage URL.
-            // This avoids the Windows php artisan serve truncation bug and handles auth.
+        if (hasPdf && docId != -1) {
             String serveUrl = RetrofitClient.BASE_URL + "api/documents/" + docId + "/file";
 
             FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
@@ -140,23 +147,11 @@ public class DocumentDetailActivity extends AppCompatActivity {
             currentUser.getIdToken(false)
                     .addOnCompleteListener(tokenTask -> {
                         if (!tokenTask.isSuccessful()) {
-                            if (hasPdf)
-                                showError(pdfLoadingBar, pdfErrorText, "Authentication failed");
-                            else
-                                runOnUiThread(() -> {
-                                    docLoadingBar.setVisibility(View.GONE);
-                                    docStatusText.setText("Authentication failed");
-                                    docStatusText.setVisibility(View.VISIBLE);
-                                });
+                            showError(pdfLoadingBar, pdfErrorText, "Authentication failed");
                             return;
                         }
                         String bearerToken = "Bearer " + tokenTask.getResult().getToken();
-                        if (hasPdf) {
-                            loadPdfInline(serveUrl, bearerToken, pdfPagesContainer, pdfLoadingBar, pdfErrorText);
-                        } else {
-                            downloadDocForViewing(serveUrl, bearerToken, fileType, docLoadingBar, docStatusText,
-                                    btnOpenDoc);
-                        }
+                        loadPdfInline(serveUrl, bearerToken, pdfPagesContainer, pdfLoadingBar, pdfErrorText);
                     });
         }
     }
@@ -380,42 +375,60 @@ public class DocumentDetailActivity extends AppCompatActivity {
      * Downloads a DOC/DOCX file via the authenticated API streaming endpoint
      * and shows an "Open Document" button.
      */
+    /**
+     * Downloads the DOC/DOCX via the Base64 JSON endpoint (same approach as PDF)
+     * to avoid the "unexpected end of stream" / "unsupported file type" error caused
+     * by PHP artisan serve on Windows corrupting binary responses.
+     */
     private void downloadDocForViewing(String url, String bearerToken, String fileType,
             ProgressBar loadingBar, TextView statusText, MaterialButton openButton) {
         new Thread(() -> {
             try {
-                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
-                conn.setRequestProperty("Authorization", bearerToken);
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(60000);
-                int code = conn.getResponseCode();
-                if (code < 200 || code >= 300) {
-                    conn.disconnect();
-                    runOnUiThread(() -> {
-                        loadingBar.setVisibility(View.GONE);
-                        statusText.setText("Cannot load document (HTTP " + code + ")");
-                        statusText.setVisibility(View.VISIBLE);
-                    });
-                    return;
+                okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
+                        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+                        .build();
+                okhttp3.Request request = new okhttp3.Request.Builder()
+                        .url(url)
+                        .header("Authorization", bearerToken)
+                        .build();
+                byte[] docBytes;
+                try (okhttp3.Response response = client.newCall(request).execute()) {
+                    if (!response.isSuccessful() || response.body() == null) {
+                        runOnUiThread(() -> {
+                            loadingBar.setVisibility(View.GONE);
+                            statusText.setText("Cannot load document (HTTP " + response.code() + ")");
+                            statusText.setVisibility(View.VISIBLE);
+                        });
+                        return;
+                    }
+                    // Response is JSON: {"data":"<base64>","mime":"doc"}
+                    String json = response.body().string();
+                    org.json.JSONObject obj = new org.json.JSONObject(json);
+                    String base64Data = obj.getString("data");
+                    docBytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT);
                 }
-                String ext = "doc".equalsIgnoreCase(fileType) ? "doc" : "docx";
+                // Detect the real format from magic bytes — the backend stores both
+                // .doc and .docx as file_type="doc", so fileType alone is unreliable.
+                // .docx (Office Open XML) is a ZIP file: magic bytes = PK (50 4B 03 04)
+                // .doc (OLE2 compound doc) starts with: D0 CF 11 E0
+                boolean isDocx = docBytes.length >= 4
+                        && (docBytes[0] & 0xFF) == 0x50   // P
+                        && (docBytes[1] & 0xFF) == 0x4B   // K
+                        && (docBytes[2] & 0xFF) == 0x03
+                        && (docBytes[3] & 0xFF) == 0x04;
+                String ext = isDocx ? "docx" : "doc";
+                String mime = isDocx
+                        ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        : "application/msword";
                 java.io.File cacheFile = new java.io.File(getCacheDir(), "preview." + ext);
-                try (java.io.InputStream is = new java.io.BufferedInputStream(conn.getInputStream());
-                        java.io.FileOutputStream fos = new java.io.FileOutputStream(cacheFile)) {
-                    byte[] buf = new byte[8192];
-                    int n;
-                    while ((n = is.read(buf)) != -1)
-                        fos.write(buf, 0, n);
-                } finally {
-                    conn.disconnect();
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(cacheFile)) {
+                    fos.write(docBytes);
                 }
                 Uri fileUri = FileProvider.getUriForFile(
                         DocumentDetailActivity.this,
                         "com.knowledgebase.sopviewer.fileprovider",
                         cacheFile);
-                String mime = "doc".equalsIgnoreCase(fileType)
-                        ? "application/msword"
-                        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
                 runOnUiThread(() -> {
                     loadingBar.setVisibility(View.GONE);
                     openButton.setVisibility(View.VISIBLE);

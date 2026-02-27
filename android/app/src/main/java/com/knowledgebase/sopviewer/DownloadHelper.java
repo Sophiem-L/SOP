@@ -47,6 +47,11 @@ public class DownloadHelper {
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
             request.setAllowedOverMetered(true);
 
+            String mime = getMimeType(fileType, fileName);
+            if (!mime.isEmpty()) {
+                request.setMimeType(mime);
+            }
+
             long downloadId = dm.enqueue(request);
             saveMetadata(context, downloadId, docTitle, fileType, description);
 
@@ -89,5 +94,39 @@ public class DownloadHelper {
                 ? docTitle.replaceAll("[^a-zA-Z0-9_\\-. ]", "_")
                 : "document";
         return safe + ext;
+    }
+
+    private static String getMimeType(String fileType, String fileName) {
+        // Try to infer from the file name extension first (more reliable for
+        // doc vs docx stored with the same fileType in the DB)
+        if (fileName != null) {
+            String lower = fileName.toLowerCase();
+            if (lower.endsWith(".docx"))
+                return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            if (lower.endsWith(".doc"))
+                return "application/msword";
+            if (lower.endsWith(".pdf"))
+                return "application/pdf";
+            if (lower.endsWith(".xlsx"))
+                return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            if (lower.endsWith(".xls"))
+                return "application/vnd.ms-excel";
+            if (lower.endsWith(".pptx"))
+                return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            if (lower.endsWith(".ppt"))
+                return "application/vnd.ms-powerpoint";
+        }
+        // Fall back to fileType field
+        if (fileType == null) return "";
+        switch (fileType.toLowerCase()) {
+            case "pdf":  return "application/pdf";
+            case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "doc":  return "application/msword";
+            case "xlsx": return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "xls":  return "application/vnd.ms-excel";
+            case "pptx": return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            case "ppt":  return "application/vnd.ms-powerpoint";
+            default:     return "";
+        }
     }
 }
