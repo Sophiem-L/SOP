@@ -91,14 +91,14 @@ class DocumentByCategoryController extends Controller
     }
 
     // 4. Detailed View
-    public function show($id)
-    {
-        $document = Document::with(['category', 'versions'])->findOrFail($id);
-        return view('document-details', compact('document'));
-    }
-
-    // 5. Download the latest version of a document
-    public function download($id)
+   public function show($id)
+{
+    // You must include 'user.roles' here!
+    $document = Document::with(['category', 'versions', 'user.roles'])->findOrFail($id);
+    return view('document-details', compact('document'));
+}
+// 5. Download the latest version of a document
+public function download($id)
     {
         $document = Document::with('versions')->findOrFail($id);
         $version  = $document->versions->first();

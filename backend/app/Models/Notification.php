@@ -12,9 +12,9 @@ class Notification extends Model
     protected $fillable = ['title', 'message', 'type', 'action_url', 'document_id'];
 
     public function document()
-    {
-        return $this->belongsTo(Document::class);
-    }
+{
+    return $this->belongsTo(Document::class, 'document_id');
+}
 
     public function users()
     {

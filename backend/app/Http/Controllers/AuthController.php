@@ -123,27 +123,43 @@ class AuthController extends Controller
     }
 
     public function webLogin(Request $request)
-{
-    // Validate the form input
-    $credentials = $request->validate([
-        'email' => 'required|email',
-        'password' => 'required',
-    ]);
+    {
+        // Validate the form input
+        $credentials = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
 
-    // Attempt to login using the local DB password backup
-    if (LocalAuth::attempt($credentials, $request->has('remember'))) {
-        // Prevent session fixation attacks
-        $request->session()->regenerate();
+        // Attempt to login using the local DB password backup
+        if (LocalAuth::attempt($credentials, $request->has('remember'))) {
+            // Prevent session fixation attacks
+            $request->session()->regenerate();
 
-        // Redirect to intended page or dashboard
-        return redirect()->intended('/documents');
+            // Redirect to intended page or dashboard
+            return redirect()->intended('/');
+        }
+
+        // If login fails, redirect back with an error message
+        return back()->withErrors([
+            'email' => 'The provided credentials do not match our records.',
+        ])->onlyInput('email');
     }
+    public function webLogout(Request $request)
+    {
+        // 1. Handle Token Cache (for API/Firebase)
+        $token = $request->bearerToken();
+        if ($token) {
+            Cache::forget('firebase_token_' . md5($token));
+        }
 
-    // If login fails, redirect back with an error message
-    return back()->withErrors([
-        'email' => 'The provided credentials do not match our records.',
-    ])->onlyInput('email');
-}
+        // 2. Clear Laravel Web Session
+        auth()->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        // 3. Redirect to login
+        return redirect('/login');
+    }
 
     /**
      * Update User Profile
@@ -199,6 +215,44 @@ class AuthController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Update failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Upload a profile avatar image.
+     * Accepts multipart/form-data with field "avatar" (image file, max 5 MB).
+     */
+    public function uploadAvatar(Request $request)
+    {
+        $user = $request->user();
+
+        $validator = Validator::make($request->all(), [
+            'avatar' => 'required|image|max:5120',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        try {
+            // Delete old avatar from storage if it exists
+            if ($user->profile_photo_url) {
+                $urlPath = parse_url($user->profile_photo_url, PHP_URL_PATH);
+                $relative = ltrim(str_replace('/storage', '', $urlPath), '/');
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($relative);
+            }
+
+            $path = $request->file('avatar')->store('avatars', 'public');
+            $url  = url('storage/' . $path);
+
+            $user->update(['profile_photo_url' => $url]);
+
+            return response()->json([
+                'message'           => 'Avatar uploaded successfully',
+                'profile_photo_url' => $url,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Upload failed: ' . $e->getMessage()], 500);
         }
     }
 

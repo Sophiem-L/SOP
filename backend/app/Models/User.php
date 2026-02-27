@@ -27,6 +27,7 @@ class User extends Authenticatable
         'firebase_uid',
         'phone',
         'job_title',
+        'profile_photo_url',
     ];
 
     /**
@@ -70,4 +71,9 @@ class User extends Authenticatable
             ->withPivot('is_read')
             ->withTimestamps();
     }
+
+public function hasRole($roleName)
+{
+    return $this->roles()->where('name', $roleName)->exists();
+}
 }
