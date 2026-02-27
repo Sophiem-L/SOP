@@ -98,13 +98,14 @@
                     </span>
                 </div>
 
+                @auth
                 <div class="dropdown">
                     <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle text-dark" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                        <img src="{{ Auth::user()->profile_photo_url ?? 'https://ui-avatars.com/api/?name='.urlencode(Auth::user()->name) }}" 
-                            alt="Profile" 
-                            class="rounded-circle me-2" 
+                        <img src="{{ Auth::user()->profile_photo_url ?? 'https://ui-avatars.com/api/?name='.urlencode(Auth::user()->name) }}"
+                            alt="Profile"
+                            class="rounded-circle me-2"
                             style="width: 40px; height: 40px; object-fit: cover;">
-                        
+
                         <span class="fw-medium">{{ Auth::user()->name }}</span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="userDropdown">
@@ -120,6 +121,7 @@
                         </li>
                     </ul>
                 </div>
+                @endauth
             </div>
 
             @yield('content')
