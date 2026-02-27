@@ -259,31 +259,43 @@ public class ProfileActivity extends AppCompatActivity {
                     if (mimeType == null) mimeType = "image/jpeg";
                     String fileName = mimeType.contains("png") ? "avatar.png" : "avatar.jpg";
 
-                    RequestBody body = RequestBody.create(imageBytes, MediaType.parse(mimeType));
+                    RequestBody body = RequestBody.create(MediaType.parse(mimeType), imageBytes);
                     MultipartBody.Part part = MultipartBody.Part.createFormData("avatar", fileName, body);
 
                     RetrofitClient.getApiService().uploadAvatar(token, part)
                             .enqueue(new Callback<ResponseBody>() {
                                 @Override
                                 public void onResponse(Call<ResponseBody> call, Response<ResponseBody> resp) {
-                                    if (resp.isSuccessful()) {
+                                    if (resp.isSuccessful() && resp.body() != null) {
+                                        try {
+                                            String json = resp.body().string();
+                                            org.json.JSONObject obj = new org.json.JSONObject(json);
+                                            String photoUrl = obj.optString("profile_photo_url", "");
+                                            if (!photoUrl.isEmpty()) {
+                                                photoUrl = photoUrl
+                                                        .replace("http://localhost:8000/", "http://10.0.2.2:8000/")
+                                                        .replace("http://127.0.0.1:8000/", "http://10.0.2.2:8000/");
+                                                final String finalUrl = photoUrl;
+                                                runOnUiThread(() ->
+                                                        Glide.with(ProfileActivity.this)
+                                                                .load(finalUrl)
+                                                                .circleCrop()
+                                                                .placeholder(R.drawable.ic_profile)
+                                                                .into(imgAvatar));
+                                            }
+                                        } catch (Exception ignored) {}
                                         runOnUiThread(() -> Toast.makeText(ProfileActivity.this,
                                                 "Profile photo updated", Toast.LENGTH_SHORT).show());
                                     } else {
-                                        runOnUiThread(() -> {
-                                            Toast.makeText(ProfileActivity.this,
-                                                    "Upload failed (" + resp.code() + ")", Toast.LENGTH_SHORT).show();
-                                            // Revert to default on failure
-                                            Glide.with(ProfileActivity.this)
-                                                    .load(R.drawable.ic_profile).circleCrop().into(imgAvatar);
-                                        });
+                                        runOnUiThread(() -> Toast.makeText(ProfileActivity.this,
+                                                "Upload failed: HTTP " + resp.code(), Toast.LENGTH_LONG).show());
                                     }
                                 }
 
                                 @Override
                                 public void onFailure(Call<ResponseBody> call, Throwable t) {
                                     runOnUiThread(() -> Toast.makeText(ProfileActivity.this,
-                                            "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show());
+                                            "Upload error: " + t.getMessage(), Toast.LENGTH_LONG).show());
                                 }
                             });
                 } catch (Exception e) {

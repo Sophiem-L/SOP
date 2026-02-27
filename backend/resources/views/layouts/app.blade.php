@@ -127,19 +127,42 @@
 
                 <div class="dropdown">
                     <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle text-dark" id="userDropdown" data-bs-toggle="dropdown">
-                        <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=0D6EFD&color=fff" 
-                             alt="Profile" class="rounded-circle me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                        @if(auth()->user()->profile_photo_url)
+                            <img src="{{ auth()->user()->profile_photo_url }}"
+                                 alt="Profile" class="rounded-circle me-2" style="width:40px;height:40px;object-fit:cover;">
+                        @else
+                            <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=0D6EFD&color=fff"
+                                 alt="Profile" class="rounded-circle me-2" style="width:40px;height:40px;object-fit:cover;">
+                        @endif
                         <span class="fw-medium">{{ auth()->user()->name }}</span>
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow border-0">
-                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i> My Profile</a></li>
-                        <li><hr class="dropdown-divider"></li>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 py-2" style="min-width:200px;">
+                        <li class="px-3 py-2">
+                            <p class="fw-semibold mb-0 small">{{ auth()->user()->full_name ?: auth()->user()->name }}</p>
+                            <p class="text-muted mb-0" style="font-size:.75rem;">{{ auth()->user()->email }}</p>
+                        </li>
+                        <li><hr class="dropdown-divider my-1"></li>
                         <li>
-                            <a class="dropdown-item text-danger" href="{{ route('logout') }}"
-                            onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                                <i class="bi bi-box-arrow-right me-2"></i> Logout
+                            <a class="dropdown-item rounded-2 py-2" href="{{ route('profile.show') }}">
+                                <i class="bi bi-person me-2 text-primary"></i>My Profile
                             </a>
-
+                        </li>
+                        <li>
+                            <a class="dropdown-item rounded-2 py-2" href="{{ route('profile.edit') }}">
+                                <i class="bi bi-pencil me-2 text-secondary"></i>Edit Profile
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item rounded-2 py-2" href="{{ route('profile.change-password') }}">
+                                <i class="bi bi-lock me-2 text-secondary"></i>Change Password
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider my-1"></li>
+                        <li>
+                            <a class="dropdown-item rounded-2 py-2 text-danger" href="{{ route('logout') }}"
+                               onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                                <i class="bi bi-box-arrow-right me-2"></i>Logout
+                            </a>
                             <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
                                 @csrf
                             </form>

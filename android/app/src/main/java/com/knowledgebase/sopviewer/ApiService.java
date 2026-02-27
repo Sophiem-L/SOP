@@ -84,8 +84,8 @@ public interface ApiService {
                         @retrofit2.http.Body java.util.Map<String, String> body);
 
         @Multipart
-        @POST("api/user/avatar")
-        Call<User> uploadAvatar(
+        @POST("api/user/upload-avatar")
+        Call<ResponseBody> uploadAvatar(
                         @Header("Authorization") String token,
                         @Part MultipartBody.Part avatar);
 
@@ -101,10 +101,4 @@ public interface ApiService {
         /** Mark all notifications as read */
         @POST("api/notifications/read-all")
         Call<ResponseBody> markAllNotificationsRead(@Header("Authorization") String token);
-
-        /** Upload a profile avatar image */
-        @Multipart
-        @POST("api/user/upload-avatar")
-        Call<ResponseBody> uploadAvatar(@Header("Authorization") String token,
-                        @Part MultipartBody.Part avatar);
 }

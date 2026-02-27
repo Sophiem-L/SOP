@@ -1,6 +1,8 @@
 package com.knowledgebase.sopviewer;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -23,11 +25,15 @@ import java.io.InputStream;
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.RequestBody;
+import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
 public class ProfileFragment extends Fragment {
+
+    private static final String PREFS_NAME = "profile_prefs";
+    private static final String KEY_LOCAL_AVATAR = "local_avatar_path";
 
     private TextView userName, userEmail, userRoleBadge, userPhone, userJobTitle, userDept;
     private ShapeableImageView imgAvatar;
@@ -38,12 +44,16 @@ public class ProfileFragment extends Fragment {
             new ActivityResultContracts.GetContent(),
             uri -> {
                 if (uri != null) {
-                    Glide.with(this)
-                            .load(uri)
-                            .circleCrop()
-                            .placeholder(R.drawable.ic_profile)
-                            .into(imgAvatar);
-                    uploadAvatar(uri);
+                    File saved = saveImageLocally(uri);
+                    if (saved != null) {
+                        Glide.with(this).load(saved)
+                                .signature(new com.bumptech.glide.signature.ObjectKey(saved.lastModified()))
+                                .circleCrop()
+                                .placeholder(R.drawable.ic_profile).into(imgAvatar);
+                        requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                                .edit().putString(KEY_LOCAL_AVATAR, saved.getAbsolutePath()).apply();
+                        uploadAvatar(saved);
+                    }
                 }
             });
 
@@ -77,7 +87,6 @@ public class ProfileFragment extends Fragment {
             return;
         }
 
-        // Bind views
         imgAvatar = view.findViewById(R.id.imgAvatar);
         userName = view.findViewById(R.id.userName);
         userEmail = view.findViewById(R.id.userEmail);
@@ -91,14 +100,101 @@ public class ProfileFragment extends Fragment {
 
         view.findViewById(R.id.btnSettings).setOnClickListener(v ->
                 SettingsMenuHelper.showSettingsMenu(requireActivity(), v));
-
         view.findViewById(R.id.btnEditAvatar).setOnClickListener(v ->
                 imagePickerLauncher.launch("image/*"));
 
+        loadLocalAvatar();
         loadUserData(currentUser);
         loadUserDataFromBackend();
         setupClickListeners();
     }
+
+    // ── Avatar persistence ────────────────────────────────────────────────────
+
+    /** Load the last locally-saved avatar from internal storage. */
+    private void loadLocalAvatar() {
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String path = prefs.getString(KEY_LOCAL_AVATAR, null);
+        if (path != null) {
+            File file = new File(path);
+            if (file.exists()) {
+                Glide.with(this).load(file)
+                        .signature(new com.bumptech.glide.signature.ObjectKey(file.lastModified()))
+                        .circleCrop()
+                        .placeholder(R.drawable.ic_profile).into(imgAvatar);
+            }
+        }
+    }
+
+    /** Copy the picked URI into internal storage so the path survives navigation. */
+    private File saveImageLocally(Uri uri) {
+        try {
+            InputStream is = requireContext().getContentResolver().openInputStream(uri);
+            File file = new File(requireContext().getFilesDir(), "profile_avatar.jpg");
+            FileOutputStream fos = new FileOutputStream(file);
+            byte[] buf = new byte[4096];
+            int read;
+            while ((read = is.read(buf)) != -1) fos.write(buf, 0, read);
+            fos.close();
+            is.close();
+            return file;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // ── Upload ────────────────────────────────────────────────────────────────
+
+    private void uploadAvatar(File imageFile) {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
+        user.getIdToken(false).addOnCompleteListener(task -> {
+            if (!task.isSuccessful()) return;
+            String token = "Bearer " + task.getResult().getToken();
+
+            RequestBody reqBody = RequestBody.create(MediaType.parse("image/jpeg"), imageFile);
+            MultipartBody.Part part = MultipartBody.Part.createFormData("avatar", imageFile.getName(), reqBody);
+
+            RetrofitClient.getApiService().uploadAvatar(token, part).enqueue(new Callback<ResponseBody>() {
+                @Override
+                public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                    if (!isAdded()) return;
+                    if (response.isSuccessful() && response.body() != null) {
+                        try {
+                            String json = response.body().string();
+                            org.json.JSONObject obj = new org.json.JSONObject(json);
+                            String photoUrl = obj.optString("profile_photo_url", "");
+                            if (!photoUrl.isEmpty()) {
+                                photoUrl = photoUrl
+                                        .replace("http://localhost:8000/", "http://10.0.2.2:8000/")
+                                        .replace("http://127.0.0.1:8000/", "http://10.0.2.2:8000/");
+                                final String finalUrl = photoUrl;
+                                requireActivity().runOnUiThread(() ->
+                                        Glide.with(ProfileFragment.this)
+                                                .load(finalUrl)
+                                                .circleCrop()
+                                                .placeholder(R.drawable.ic_profile)
+                                                .into(imgAvatar));
+                            }
+                        } catch (Exception ignored) {}
+                        Toast.makeText(requireContext(), "Profile photo updated", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(requireContext(),
+                                "Upload failed: HTTP " + response.code(), Toast.LENGTH_LONG).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<ResponseBody> call, Throwable t) {
+                    if (!isAdded()) return;
+                    Toast.makeText(requireContext(),
+                            "Upload error: " + t.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            });
+        });
+    }
+
+    // ── Data loading ──────────────────────────────────────────────────────────
 
     private void loadUserData(FirebaseUser user) {
         userName.setText(user.getDisplayName() != null ? user.getDisplayName() : "Group 8");
@@ -136,62 +232,26 @@ public class ProfileFragment extends Fragment {
         else
             userDept.setText("");
         if (userRoleBadge != null) {
-            if (user.getRoles() != null && !user.getRoles().isEmpty() && user.getRoles().get(0).getName() != null)
+            if (user.getRoles() != null && !user.getRoles().isEmpty()
+                    && user.getRoles().get(0).getName() != null)
                 userRoleBadge.setText(user.getRoles().get(0).getName());
             else
                 userRoleBadge.setText("");
         }
-        if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
-            Glide.with(this)
-                    .load(user.getAvatarUrl())
-                    .circleCrop()
-                    .placeholder(R.drawable.ic_profile)
-                    .into(imgAvatar);
+
+        // Server avatar takes priority over local copy only if upload succeeded previously
+        String photoUrl = user.getProfilePhotoUrl() != null ? user.getProfilePhotoUrl()
+                : user.getAvatarUrl();
+        if (photoUrl != null && !photoUrl.isEmpty()) {
+            photoUrl = photoUrl
+                    .replace("http://localhost:8000/", "http://10.0.2.2:8000/")
+                    .replace("http://127.0.0.1:8000/", "http://10.0.2.2:8000/");
+            Glide.with(this).load(photoUrl).circleCrop()
+                    .placeholder(R.drawable.ic_profile).into(imgAvatar);
         }
     }
 
-    private void uploadAvatar(Uri uri) {
-        FirebaseUser user = mAuth.getCurrentUser();
-        if (user == null) return;
-        user.getIdToken(false).addOnCompleteListener(task -> {
-            if (!task.isSuccessful()) return;
-            String token = "Bearer " + task.getResult().getToken();
-            try {
-                InputStream is = requireContext().getContentResolver().openInputStream(uri);
-                File tempFile = File.createTempFile("avatar", ".jpg", requireContext().getCacheDir());
-                FileOutputStream fos = new FileOutputStream(tempFile);
-                byte[] buf = new byte[4096];
-                int read;
-                while ((read = is.read(buf)) != -1) fos.write(buf, 0, read);
-                fos.close();
-                is.close();
-
-                RequestBody reqBody = RequestBody.create(tempFile, MediaType.parse("image/*"));
-                MultipartBody.Part part = MultipartBody.Part.createFormData("avatar", tempFile.getName(), reqBody);
-
-                RetrofitClient.getApiService().uploadAvatar(token, part).enqueue(new Callback<User>() {
-                    @Override
-                    public void onResponse(Call<User> call, Response<User> response) {
-                        if (!isAdded()) return;
-                        if (response.isSuccessful()) {
-                            Toast.makeText(requireContext(), "Profile photo updated", Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(requireContext(), "Failed to upload photo", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Call<User> call, Throwable t) {
-                        if (!isAdded()) return;
-                        Toast.makeText(requireContext(), "Upload error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
-            } catch (Exception e) {
-                if (!isAdded()) return;
-                Toast.makeText(requireContext(), "Failed to process image", Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
+    // ── Click listeners ───────────────────────────────────────────────────────
 
     private void setupClickListeners() {
         editProfileItem.setOnClickListener(v -> {

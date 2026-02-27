@@ -57,10 +57,25 @@ class DashboardController extends Controller
 
         $totalDocuments = $this->visibleDocsQuery($user)->count();
 
+        // Handle both integer status (0 = pending) and string status ('pending')
+        $pendingQuery = Document::where('is_active', true)
+            ->whereIn('status', [0, 'pending']);
+
         // Pending count: HR/Admin see all pending; regular users only see their own
         $pendingDocuments = $isHrOrAdmin
-            ? Document::where('is_active', true)->where('status', 'pending')->count()
-            : $this->visibleDocsQuery($user)->where('status', 'pending')->where('created_by', $user->id)->count();
+            ? (clone $pendingQuery)->count()
+            : $this->visibleDocsQuery($user)
+                ->whereIn('status', [0, 'pending'])
+                ->where('created_by', $user->id)
+                ->count();
+
+        // Pending documents list for admin/HR to review (with creator info)
+        $pendingDocs = $isHrOrAdmin
+            ? (clone $pendingQuery)
+                ->with(['category:id,name', 'creator:id,name,full_name'])
+                ->orderByDesc('created_at')
+                ->get()
+            : collect();
 
         // Recent categories with doc counts, scoped to what the user can see
         $recentCategories = $this->visibleDocsQuery($user)
@@ -76,6 +91,9 @@ class DashboardController extends Controller
             'pendingDocuments' => $pendingDocuments,
             'totalUsers'       => User::count(),
             'recentCategories' => $recentCategories,
+            'categories'       => Category::orderBy('name', 'asc')->get(),
+            'pendingDocs'      => $pendingDocs,
+            'isHrOrAdmin'      => $isHrOrAdmin,
         ]);
     }
 }

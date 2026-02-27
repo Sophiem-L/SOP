@@ -9,6 +9,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\WebProfileController;
 
 use App\Models\Category;
 use App\Models\Document;
@@ -37,6 +38,14 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/settings/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/settings/roles', [RoleController::class, 'index'])->name('roles.index');
     Route::get('/settings/roles/create', [RoleController::class, 'create'])->name('roles.create');
+
+    // Profile routes
+    Route::get('/profile', [WebProfileController::class, 'show'])->name('profile.show');
+    Route::get('/profile/edit', [WebProfileController::class, 'edit'])->name('profile.edit');
+    Route::post('/profile/update', [WebProfileController::class, 'update'])->name('profile.update');
+    Route::post('/profile/avatar', [WebProfileController::class, 'uploadAvatar'])->name('profile.avatar');
+    Route::get('/profile/change-password', [WebProfileController::class, 'showChangePassword'])->name('profile.change-password');
+    Route::post('/profile/change-password', [WebProfileController::class, 'changePassword'])->name('profile.change-password.update');
 
     Route::post('/logout', [AuthController::class, 'webLogout'])->name('logout');
 
