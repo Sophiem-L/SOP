@@ -11,6 +11,7 @@ public class Document {
     private String description;
     private String updated_at;
     private int is_favorite;
+    private String status; // "pending", "approved", "rejected"
 
     public int getId() {
         return id;
@@ -51,5 +52,9 @@ public class Document {
 
     public List<DocumentVersion> getVersions() {
         return versions;
+    }
+
+    public String getStatus() {
+        return status != null ? status : "pending";
     }
 }

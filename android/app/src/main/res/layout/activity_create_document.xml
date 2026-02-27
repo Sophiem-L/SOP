@@ -234,6 +234,30 @@
                             android:textSize="11sp" />
                     </LinearLayout>
 
+                    <!-- Description field -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:text="Description"
+                        android:textColor="@color/black"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/editDescription"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="16dp"
+                        android:background="@drawable/bg_rounded_search"
+                        android:gravity="top|start"
+                        android:hint="Enter document description (optional)"
+                        android:inputType="textMultiLine|textCapSentences"
+                        android:minLines="3"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="12dp"
+                        android:textSize="14sp" />
+
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -287,34 +311,23 @@
                             app:tint="@color/gray_text" />
 
                         <EditText
+                            android:id="@+id/editTagInput"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="8dp"
                             android:background="@null"
                             android:hint="Add tags (e.g., 'Finance', 'Policy')"
+                            android:imeOptions="actionDone"
+                            android:inputType="text"
                             android:textSize="14sp" />
                     </LinearLayout>
 
                     <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/chipGroupTags"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-
-                        <com.google.android.material.chip.Chip
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Corporate"
-                            app:chipBackgroundColor="@color/bg_light"
-                            app:chipCornerRadius="8dp"
-                            app:chipStrokeWidth="0dp" />
-
-                        <com.google.android.material.chip.Chip
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Guideline"
-                            app:chipBackgroundColor="@color/bg_light"
-                            app:chipCornerRadius="8dp"
-                            app:chipStrokeWidth="0dp" />
-                    </com.google.android.material.chip.ChipGroup>
+                        android:layout_height="wrap_content"
+                        app:chipSpacingHorizontal="4dp"
+                        app:chipSpacingVertical="4dp" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

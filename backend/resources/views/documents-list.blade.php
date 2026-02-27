@@ -22,7 +22,7 @@
         @php
             // Using $doc->id (object) instead of $doc['id'] (array)
             $isBookmarked = \DB::table('favorites')
-                ->where('user_id', 1) 
+                ->where('user_id', auth()->id())
                 ->where('document_id', $doc->id)
                 ->exists();
         @endphp

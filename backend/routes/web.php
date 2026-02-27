@@ -6,10 +6,9 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
-// 1. ADD THIS MISSING LINE:
-use App\Http\Controllers\NotificationController; 
 
 use App\Models\Category;
 use App\Models\Document;
@@ -19,9 +18,7 @@ Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [AuthController::class, 'webLogin']);
 
 Route::middleware(['auth'])->group(function () {
-    
-    Route::get('/', [DashboardController::class, 'index'])->middleware(['auth']);
-
+    Route::get('/', [DashboardController::class, 'index']);
     Route::get('/documents', [DocumentByCategoryController::class, 'allDocuments'])->name('documents.all');
     Route::get('/documents/create', function () {
         $categories = Category::orderBy('name', 'asc')->get();
@@ -30,9 +27,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('/documents/store', [DocumentController::class, 'store'])->name('documents.store');
     Route::get('/category/{category}', [DocumentByCategoryController::class, 'showByCategory'])->name('category.view');
-    Route::get('/documents/{id}/download', [DocumentByCategoryController::class, 'download'])
-    ->name('documents.download')
-    ->middleware('auth');
+    Route::get('/documents/{id}/download', [DocumentByCategoryController::class, 'download'])->name('documents.download');
     Route::get('/documents/{id}', [DocumentByCategoryController::class, 'show'])->name('documents.show');
     Route::post('/documents/{document}/approve', [DocumentController::class, 'approve'])->name('documents.approve');
     Route::post('/documents/{document}/reject', [DocumentController::class, 'reject'])->name('documents.reject');
@@ -45,14 +40,11 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'webLogout'])->name('logout');
 
-    // 2. Notification Page (The View)
     Route::get('/notifications-center', function () {
         return view('notifications.index');
     })->name('notifications.page');
 
-    // 3. Notification Data (The AJAX endpoints)
-    // Removed the redundant nested middleware group here
-    Route::get('/notifications-data', [NotificationController::class, 'getNotificationsData'])->name('notifications.data'); 
+    Route::get('/notifications-data', [NotificationController::class, 'getNotificationsData'])->name('notifications.data');
     Route::post('/documents/{id}/update-status', [NotificationController::class, 'updateStatus']);
     Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
     Route::patch('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead']);

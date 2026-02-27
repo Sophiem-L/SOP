@@ -99,7 +99,7 @@
             android:orientation="vertical"
             android:padding="24dp">
 
-            <!-- Category & File Type badges -->
+            <!-- Category, File Type & Status badges -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -124,6 +124,7 @@
                     android:id="@+id/docFileType"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
                     android:background="@drawable/bg_rounded_card"
                     android:backgroundTint="#F0FDF4"
                     android:paddingHorizontal="12dp"
@@ -132,6 +133,50 @@
                     android:textColor="#16A34A"
                     android:textSize="12sp"
                     android:textStyle="bold" />
+
+                <!-- Status badge: hidden when empty, coloured by status -->
+                <TextView
+                    android:id="@+id/docStatusBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_rounded_card"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="4dp"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- HR/Admin approval actions (hidden for regular users) -->
+            <LinearLayout
+                android:id="@+id/layoutApprovalActions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="20dp"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnApprove"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1"
+                    android:text="Approve"
+                    android:textAllCaps="false"
+                    app:backgroundTint="#16A34A"
+                    app:cornerRadius="10dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnReject"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="Reject"
+                    android:textAllCaps="false"
+                    app:backgroundTint="#DC2626"
+                    app:cornerRadius="10dp" />
+
             </LinearLayout>
 
             <!-- Description -->
@@ -221,22 +266,100 @@
                     android:id="@+id/pdfPagesContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
+                    android:orientation="vertical" />
+
+                <!-- Shown when PDF cannot be rendered -->
+                <TextView
+                    android:id="@+id/pdfErrorText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:padding="24dp"
+                    android:text="Unable to load PDF preview"
+                    android:textColor="@color/gray_text"
+                    android:textSize="14sp"
                     android:visibility="gone" />
 
             </LinearLayout>
 
-            <!-- Open Document button (shown for non-PDF files) -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnOpenDocument"
+            <!-- DOC file card (shown for DOC/DOCX files — download to view) -->
+            <LinearLayout
+                android:id="@+id/docViewerContainer"
                 android:layout_width="match_parent"
-                android:layout_height="56dp"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
-                android:text="Open Document"
-                android:textAllCaps="false"
-                android:textSize="15sp"
-                android:visibility="gone"
-                app:cornerRadius="12dp" />
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:text="Document File"
+                    android:textColor="@color/text_primary"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <!-- File indicator card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:background="@drawable/bg_rounded_card"
+                    android:backgroundTint="#F1F5F9"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="16dp">
+
+                    <ImageView
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:src="@drawable/ic_doc"
+                        app:tint="#2563EB" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/docFileName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/docFileSubtitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Word Document"
+                            android:textColor="@color/gray_text"
+                            android:textSize="12sp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnOpenDoc"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:text="Download to View"
+                    android:textAllCaps="false"
+                    app:backgroundTint="@color/brand_blue"
+                    app:cornerRadius="10dp"
+                    app:icon="@drawable/ic_download"
+                    app:iconGravity="start"
+                    app:iconPadding="8dp" />
+
+            </LinearLayout>
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

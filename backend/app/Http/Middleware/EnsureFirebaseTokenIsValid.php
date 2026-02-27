@@ -155,7 +155,7 @@ class EnsureFirebaseTokenIsValid
             throw $e;
         }
 
-        $role = Role::firstOrCreate(['name' => 'Employee']);
+        $role = Role::firstOrCreate(['name' => 'employee']);
         $user->roles()->attach($role->id);
 
         Log::info("Auto-created DB user for Firebase UID: {$uid} (email: {$email})");

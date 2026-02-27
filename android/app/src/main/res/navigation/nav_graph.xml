@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/navigation_home">
+
+    <fragment
+        android:id="@+id/navigation_home"
+        android:name="com.knowledgebase.sopviewer.HomeFragment"
+        android:label="Home" />
+
+    <fragment
+        android:id="@+id/navigation_search"
+        android:name="com.knowledgebase.sopviewer.SearchFragment"
+        android:label="Search" />
+
+    <fragment
+        android:id="@+id/navigation_bookmarks"
+        android:name="com.knowledgebase.sopviewer.BookmarksFragment"
+        android:label="Bookmarks" />
+
+    <fragment
+        android:id="@+id/navigation_notifications"
+        android:name="com.knowledgebase.sopviewer.NotificationsFragment"
+        android:label="Notifications" />
+
+    <fragment
+        android:id="@+id/navigation_profile"
+        android:name="com.knowledgebase.sopviewer.ProfileFragment"
+        android:label="Profile" />
+
+</navigation>

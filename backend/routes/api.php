@@ -29,8 +29,9 @@ Route::middleware(['firebase.auth'])->group(function () {
 
     // Notifications
     Route::get('/notifications', [NotificationController::class, 'index']);
-    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::get('/notifications/stream', [NotificationController::class, 'stream']); // SSE real-time badge
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
 
     Route::get('/user', function (Request $request) {
         return $request->user()->load(['department', 'roles']);
@@ -39,10 +40,15 @@ Route::middleware(['firebase.auth'])->group(function () {
     // Documents
     Route::get('/documents', [DocumentController::class, 'index']);
     Route::post('/documents', [DocumentController::class, 'store']);
+    // Named routes must come before {id} wildcard routes
     Route::get('/documents/favorites', [DocumentController::class, 'favorites']);
+    Route::get('/documents/pending', [DocumentController::class, 'pendingApprovals']);
+    Route::get('/documents/{id}/file', [DocumentController::class, 'serveFile']);
     Route::post('/documents/{id}/favorite', [DocumentController::class, 'toggleFavorite']);
+    Route::post('/documents/{id}/status', [DocumentController::class, 'updateStatus']);
     Route::post('/user/update', [AuthController::class, 'updateProfile']);
     Route::post('/user/update-password', [AuthController::class, 'updatePassword']);
+    Route::post('/user/upload-avatar', [AuthController::class, 'uploadAvatar']);
 });
 
 // Public routes (no Firebase auth required)

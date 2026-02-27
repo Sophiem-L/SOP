@@ -11,6 +11,7 @@ public class RecentDoc {
     private String fileType;
     private String category;
     private String version;
+    private String status = ""; // "pending", "approved", "rejected", "" for articles/SOPs
 
     public RecentDoc(int id, String title, String description, String date, int imageResId,
                      boolean isFavorite, String fileUrl, String fileType, String category, String version) {
@@ -37,4 +38,6 @@ public class RecentDoc {
     public String getFileType() { return fileType; }
     public String getCategory() { return category; }
     public String getVersion() { return version; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status != null ? status : ""; }
 }

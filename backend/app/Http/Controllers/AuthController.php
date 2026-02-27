@@ -219,6 +219,44 @@ class AuthController extends Controller
     }
 
     /**
+     * Upload a profile avatar image.
+     * Accepts multipart/form-data with field "avatar" (image file, max 5 MB).
+     */
+    public function uploadAvatar(Request $request)
+    {
+        $user = $request->user();
+
+        $validator = Validator::make($request->all(), [
+            'avatar' => 'required|image|max:5120',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        try {
+            // Delete old avatar from storage if it exists
+            if ($user->profile_photo_url) {
+                $urlPath = parse_url($user->profile_photo_url, PHP_URL_PATH);
+                $relative = ltrim(str_replace('/storage', '', $urlPath), '/');
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($relative);
+            }
+
+            $path = $request->file('avatar')->store('avatars', 'public');
+            $url  = url('storage/' . $path);
+
+            $user->update(['profile_photo_url' => $url]);
+
+            return response()->json([
+                'message'           => 'Avatar uploaded successfully',
+                'profile_photo_url' => $url,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Upload failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Update password (sync to DB after client updates Firebase).
      * Expects: { "new_password": "..." }
      */

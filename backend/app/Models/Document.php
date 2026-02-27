@@ -14,8 +14,7 @@ class Document extends Model
         'reviewed_at'];
 
     protected $casts = [
-        'is_active' => 'boolean',
-        'status' => 'integer',
+        'is_active'   => 'boolean',
         'reviewed_at' => 'datetime',
     ];
 

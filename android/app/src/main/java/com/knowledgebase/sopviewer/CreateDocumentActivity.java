@@ -11,7 +11,12 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.app.AlertDialog;
+import android.view.KeyEvent;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Toast;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.Spinner;
@@ -71,7 +76,8 @@ public class CreateDocumentActivity extends AppCompatActivity {
     private ImageView imgPdf, imgHtml;
     private TextView txtPdf, txtHtml;
     private View sectionPdfUpload, sectionHtmlEditor;
-    private EditText editTitle, editVersion, editNewCategory;
+    private EditText editTitle, editVersion, editNewCategory, editDescription, editTagInput;
+    private ChipGroup chipGroupTags;
     private TextView textPublishedDate;
     private Spinner spinnerCategory;
     private final Calendar calendar = Calendar.getInstance();
@@ -138,21 +144,40 @@ public class CreateDocumentActivity extends AppCompatActivity {
         textPublishedDate = findViewById(R.id.textPublishedDate);
         spinnerCategory = findViewById(R.id.spinnerCategory);
         editNewCategory = findViewById(R.id.editNewCategory);
+        editDescription = findViewById(R.id.editDescription);
+        editTagInput = findViewById(R.id.editTagInput);
+        chipGroupTags = findViewById(R.id.chipGroupTags);
+
+        if (editTagInput != null) {
+            editTagInput.setOnEditorActionListener((v, actionId, event) -> {
+                boolean done = actionId == EditorInfo.IME_ACTION_DONE;
+                boolean enter = event != null
+                        && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                        && event.getAction() == KeyEvent.ACTION_DOWN;
+                if (done || enter) {
+                    String tag = editTagInput.getText().toString().trim();
+                    if (!tag.isEmpty()) {
+                        addTagChip(tag);
+                        editTagInput.setText("");
+                    }
+                    return true;
+                }
+                return false;
+            });
+        }
 
         findViewById(R.id.containerPublishedDate).setOnClickListener(v -> showDatePickerDialog());
 
         fetchCategories();
 
         Button btnPublish = findViewById(R.id.btnPublish);
-        btnPublish.setOnClickListener(v -> publishDocument());
+        btnPublish.setOnClickListener(v -> submitDocument("pending"));
 
         Button btnSaveDraft = findViewById(R.id.btnSaveDraft);
-        btnSaveDraft.setOnClickListener(v ->
-                Toast.makeText(this, "Draft Saved", Toast.LENGTH_SHORT).show());
+        btnSaveDraft.setOnClickListener(v -> submitDocument("draft"));
 
         Button btnPreview = findViewById(R.id.btnPreview);
-        btnPreview.setOnClickListener(v ->
-                Toast.makeText(this, "Opening Preview...", Toast.LENGTH_SHORT).show());
+        btnPreview.setOnClickListener(v -> showPreviewDialog());
     }
 
     private void fetchCategories() {
@@ -198,7 +223,7 @@ public class CreateDocumentActivity extends AppCompatActivity {
         spinnerCategory.setAdapter(adapter);
     }
 
-    private void publishDocument() {
+    private void submitDocument(String docStatus) {
         String title = editTitle.getText().toString().trim();
         if (title.isEmpty()) {
             editTitle.setError("Title is required");
@@ -237,16 +262,39 @@ public class CreateDocumentActivity extends AppCompatActivity {
             return;
         }
 
-        String mimeType = isPdfMode ? "application/pdf"
-                : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-        String fileName = isPdfMode ? "document.pdf" : "document.docx";
-        String type = isPdfMode ? "pdf" : "doc";
+        // Detect actual MIME type and filename from the URI so .doc and .docx are sent correctly
+        String detectedMime = getContentResolver().getType(selectedFileUri);
+        String actualFileName = getFileName(selectedFileUri);
+        String mimeType, fileName, type;
+        if (isPdfMode) {
+            mimeType = "application/pdf";
+            fileName = (actualFileName != null && !actualFileName.isEmpty()) ? actualFileName : "document.pdf";
+            type = "pdf";
+        } else {
+            // Normalize MIME: ContentResolver may return application/zip for .docx
+            // (because .docx is a ZIP-based format). Only trust known Word MIME types.
+            boolean isKnownWordMime = detectedMime != null
+                    && (detectedMime.contains("msword")
+                        || detectedMime.contains("wordprocessingml")
+                        || detectedMime.equals("application/octet-stream"));
+            if (!isKnownWordMime) {
+                String lower = actualFileName != null ? actualFileName.toLowerCase() : "";
+                detectedMime = lower.endsWith(".doc")
+                        ? "application/msword"
+                        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            }
+            mimeType = detectedMime;
+            fileName = (actualFileName != null && !actualFileName.isEmpty()) ? actualFileName : "document.docx";
+            type = "doc";
+        }
 
+        String description = editDescription != null ? editDescription.getText().toString().trim() : "";
         RequestBody titlePart = RequestBody.create(MediaType.parse("text/plain"), title);
         RequestBody typePart = RequestBody.create(MediaType.parse("text/plain"), type);
         RequestBody categoryIdPart = RequestBody.create(MediaType.parse("text/plain"), categoryId);
         RequestBody categoryNamePart = RequestBody.create(MediaType.parse("text/plain"), categoryName);
-        RequestBody contentPart = RequestBody.create(MediaType.parse("text/plain"), "");
+        RequestBody descriptionPart = RequestBody.create(MediaType.parse("text/plain"), description);
+        RequestBody statusPart = RequestBody.create(MediaType.parse("text/plain"), docStatus);
         RequestBody requestFile = RequestBody.create(MediaType.parse(mimeType), fileBytes);
         MultipartBody.Part filePart = MultipartBody.Part.createFormData("file", fileName, requestFile);
 
@@ -257,13 +305,13 @@ public class CreateDocumentActivity extends AppCompatActivity {
                     String idToken = "Bearer " + task.getResult().getToken();
                     RetrofitClient.getApiService()
                             .createDocument(idToken, titlePart, typePart, categoryIdPart,
-                                    categoryNamePart, contentPart, filePart)
+                                    categoryNamePart, descriptionPart, statusPart, filePart)
                             .enqueue(new Callback<ResponseBody>() {
                                 @Override
                                 public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
                                     if (response.isSuccessful()) {
-                                        Toast.makeText(CreateDocumentActivity.this,
-                                                "Document Published Successfully", Toast.LENGTH_SHORT).show();
+                                        String msg = "draft".equals(docStatus) ? "Draft saved" : "Document published successfully";
+                                        Toast.makeText(CreateDocumentActivity.this, msg, Toast.LENGTH_SHORT).show();
                                         setResult(RESULT_OK);
                                         finish();
                                     } else {
@@ -281,6 +329,51 @@ public class CreateDocumentActivity extends AppCompatActivity {
                 }
             });
         }
+    }
+
+    private void addTagChip(String tagText) {
+        if (chipGroupTags == null) return;
+        Chip chip = new Chip(this);
+        chip.setText(tagText);
+        chip.setCloseIconVisible(true);
+        chip.setChipBackgroundColorResource(R.color.bg_light);
+        float cornerPx = 8 * getResources().getDisplayMetrics().density;
+        chip.setChipCornerRadius(cornerPx);
+        chip.setOnCloseIconClickListener(v -> chipGroupTags.removeView(chip));
+        chipGroupTags.addView(chip);
+    }
+
+    private void showPreviewDialog() {
+        String title = editTitle != null ? editTitle.getText().toString().trim() : "";
+        if (title.isEmpty()) title = "(No title)";
+
+        String description = editDescription != null ? editDescription.getText().toString().trim() : "";
+        if (description.isEmpty()) description = "(No description)";
+
+        String category;
+        if (editNewCategory != null && editNewCategory.getVisibility() == View.VISIBLE) {
+            category = editNewCategory.getText().toString().trim();
+            if (category.isEmpty()) category = "(No category)";
+        } else {
+            Category sel = spinnerCategory != null ? (Category) spinnerCategory.getSelectedItem() : null;
+            category = (sel != null && sel.getId() > 0) ? sel.getName() : "(No category)";
+        }
+
+        Uri fileUri = isPdfMode ? selectedPdfUri : selectedDocUri;
+        String fileLabel = fileUri != null ? getFileName(fileUri) : "(No file selected)";
+        if (fileLabel == null || fileLabel.isEmpty()) fileLabel = "(No file selected)";
+
+        String message = "Title: " + title + "\n\n"
+                + "Description: " + description + "\n\n"
+                + "Category: " + category + "\n\n"
+                + "File: " + fileLabel + "\n\n"
+                + "Type: " + (isPdfMode ? "PDF" : "DOC");
+
+        new AlertDialog.Builder(this)
+                .setTitle("Document Preview")
+                .setMessage(message)
+                .setPositiveButton("OK", null)
+                .show();
     }
 
     private void showDatePickerDialog() {

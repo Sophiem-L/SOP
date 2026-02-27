@@ -2,6 +2,8 @@ package com.knowledgebase.sopviewer;
 
 import java.util.List;
 import retrofit2.Call;
+import retrofit2.http.Field;
+import retrofit2.http.FormUrlEncoded;
 import retrofit2.http.GET;
 import retrofit2.http.Header;
 import retrofit2.http.Headers;
@@ -51,7 +53,8 @@ public interface ApiService {
                         @Part("type") RequestBody type,
                         @Part("category_id") RequestBody categoryId,
                         @Part("category_name") RequestBody categoryName,
-                        @Part("description") RequestBody content,
+                        @Part("description") RequestBody description,
+                        @Part("status") RequestBody status,
                         @Part MultipartBody.Part file);
 
         @Headers("Content-Type: application/json")
@@ -62,8 +65,40 @@ public interface ApiService {
         @GET("api/user")
         Call<User> getProfile(@Header("Authorization") String token);
 
+        /** HR/Admin: list documents awaiting approval */
+        @GET("api/documents/pending")
+        Call<List<Document>> getPendingDocuments(@Header("Authorization") String token);
+
+        /** HR/Admin: approve or reject a document */
+        @FormUrlEncoded
+        @POST("api/documents/{id}/status")
+        Call<ResponseBody> updateDocumentStatus(
+                        @Path("id") int id,
+                        @Header("Authorization") String token,
+                        @Field("status") String status,
+                        @Field("note") String note);
+
         @Headers("Content-Type: application/json")
         @POST("api/user/update-password")
         Call<ResponseBody> updatePassword(@Header("Authorization") String token,
                         @retrofit2.http.Body java.util.Map<String, String> body);
+
+        /** Get the authenticated user's notifications */
+        @GET("api/notifications")
+        Call<List<Notification>> getNotifications(@Header("Authorization") String token);
+
+        /** Mark a single notification as read */
+        @POST("api/notifications/{id}/read")
+        Call<ResponseBody> markNotificationRead(@Path("id") int id,
+                        @Header("Authorization") String token);
+
+        /** Mark all notifications as read */
+        @POST("api/notifications/read-all")
+        Call<ResponseBody> markAllNotificationsRead(@Header("Authorization") String token);
+
+        /** Upload a profile avatar image */
+        @Multipart
+        @POST("api/user/upload-avatar")
+        Call<ResponseBody> uploadAvatar(@Header("Authorization") String token,
+                        @Part MultipartBody.Part avatar);
 }

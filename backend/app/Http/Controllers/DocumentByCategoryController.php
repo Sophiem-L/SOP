@@ -10,44 +10,83 @@ use Illuminate\Support\Facades\Storage;
 
 class DocumentByCategoryController extends Controller
 {
-    // 1. Shows EVERYTHING from the database
+    private function isHrOrAdmin($user): bool
+    {
+        return $user && $user->roles()->whereIn('name', ['admin', 'hr'])->exists();
+    }
+
+    /** Applies user-based visibility rules to an existing Document query. */
+    private function applyUserScope($query, $user)
+    {
+        $userId      = $user->id;
+        $isHrOrAdmin = $this->isHrOrAdmin($user);
+
+        if ($isHrOrAdmin) {
+            $query->where(function ($q) use ($userId) {
+                $q->where('created_by', $userId)
+                  ->orWhere(function ($q2) use ($userId) {
+                      $q2->where('created_by', '!=', $userId)
+                         ->whereIn('status', ['pending', 'approved', 'rejected']);
+                  });
+            });
+        } else {
+            $query->where(function ($q) use ($userId) {
+                $q->where('created_by', $userId)
+                  ->orWhere(function ($q2) {
+                      $q2->where('status', 'approved')
+                         ->whereIn('created_by', function ($sub) {
+                             $sub->select('user_roles.user_id')
+                                 ->from('user_roles')
+                                 ->join('roles', 'user_roles.role_id', '=', 'roles.id')
+                                 ->whereIn('roles.name', ['admin', 'hr']);
+                         });
+                  });
+            });
+        }
+    }
+
+    // 1. Shows documents visible to the authenticated user
     public function allDocuments()
     {
-        $documents = Document::with('category')->get();
+        $user  = auth()->user();
+        $query = Document::with('category')->where('is_active', true);
+        $this->applyUserScope($query, $user);
+        $documents = $query->latest()->get();
 
         return view('documents-list', [
-            'title' => 'All Documents',
-            'documents' => $documents
+            'title'     => 'All Documents',
+            'documents' => $documents,
         ]);
     }
 
-    // 2. Filter by Category Name or ID
+    // 2. Filter by Category — scoped to what the user can see
     public function showByCategory($categoryName)
     {
-        // Find the category by name first
+        $user     = auth()->user();
         $category = Category::where('name', $categoryName)->firstOrFail();
-        
-        // Get all documents belonging to this category
-        $documents = Document::where('category_id', $category->id)->latest()->get();
+
+        $query = Document::where('category_id', $category->id)->where('is_active', true);
+        $this->applyUserScope($query, $user);
+        $documents = $query->latest()->get();
 
         return view('documents-list', [
-            'title' => $category->name . " Documents",
-            'documents' => $documents
+            'title'     => $category->name . ' Documents',
+            'documents' => $documents,
         ]);
     }
 
-    // 3. Shows only Bookmarked/Favorited items
+    // 3. Shows only Bookmarked/Favorited items for the authenticated user
     public function bookmarks()
     {
-        $userId = 1; // Temporary manual ID
+        $userId = auth()->id();
 
-        $bookmarkedDocs = Document::whereHas('favorites', function($query) use ($userId) {
+        $bookmarkedDocs = Document::whereHas('favorites', function ($query) use ($userId) {
             $query->where('user_id', $userId);
-        })->with('category')->get();
+        })->with('category')->where('is_active', true)->get();
 
         return view('documents-list', [
-            'title' => 'My Bookmarks',
-            'documents' => $bookmarkedDocs
+            'title'     => 'My Bookmarks',
+            'documents' => $bookmarkedDocs,
         ]);
     }
 
@@ -58,28 +97,24 @@ class DocumentByCategoryController extends Controller
     $document = Document::with(['category', 'versions', 'user.roles'])->findOrFail($id);
     return view('document-details', compact('document'));
 }
+// 5. Download the latest version of a document
 public function download($id)
-{
-    // Load document with versions
-    $document = Document::with('versions')->findOrFail($id);
-    $latestVersion = $document->versions->first();
+    {
+        $document = Document::with('versions')->findOrFail($id);
+        $version  = $document->versions->first();
 
-    if (!$latestVersion || !$latestVersion->file_url) {
-        return back()->with('error', 'Download URL not found.');
+        if (!$version || !$version->file_url) {
+            abort(404, 'File not found');
+        }
+
+        $urlPath      = parse_url($version->file_url, PHP_URL_PATH);
+        $relativePath = ltrim(str_replace('/storage', '', $urlPath), '/');
+        $fullPath     = storage_path('app/public/' . $relativePath);
+
+        if (!file_exists($fullPath)) {
+            abort(404, 'File not found on disk');
+        }
+
+        return response()->download($fullPath);
     }
-
-    // Convert the full URL into a relative storage path
-    // Example: 'http://127.0.0.1:8000/storage/documents/file.pdf' -> 'documents/file.pdf'
-    $path = str_replace(url('storage/'), '', $latestVersion->file_url);
-
-    if (!Storage::disk('public')->exists($path)) {
-        return back()->with('error', 'The file does not exist on the server.');
-    }
-
-    // Use the document title as the download name
-    $extension = pathinfo($path, PATHINFO_EXTENSION);
-    $fileName = $document->title . '.' . $extension;
-
-    return Storage::disk('public')->download($path, $fileName);
-}
 }

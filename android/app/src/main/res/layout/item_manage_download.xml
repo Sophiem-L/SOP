@@ -9,6 +9,7 @@
     android:paddingVertical="12dp"
     android:paddingHorizontal="4dp">
 
+    <!-- File icon -->
     <ImageView
         android:id="@+id/iconFile"
         android:layout_width="40dp"
@@ -18,6 +19,7 @@
         app:layout_constraintTop_toTopOf="parent"
         app:tint="@color/brand_blue" />
 
+    <!-- Document title -->
     <TextView
         android:id="@+id/label"
         android:layout_width="0dp"
@@ -28,21 +30,12 @@
         android:maxLines="1"
         android:textColor="@color/text_primary"
         android:textSize="15sp"
-        app:layout_constraintEnd_toStartOf="@id/sizeText"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toStartOf="@id/btnDelete"
         app:layout_constraintStart_toEndOf="@id/iconFile"
         app:layout_constraintTop_toTopOf="@id/iconFile" />
 
-    <TextView
-        android:id="@+id/sizeText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="8dp"
-        android:textColor="@color/gray_text"
-        android:textSize="13sp"
-        app:layout_constraintBottom_toBottomOf="@id/iconFile"
-        app:layout_constraintEnd_toStartOf="@id/btnDelete"
-        app:layout_constraintTop_toTopOf="@id/iconFile" />
-
+    <!-- Delete button -->
     <ImageView
         android:id="@+id/btnDelete"
         android:layout_width="40dp"
@@ -52,4 +45,50 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:tint="@color/gray_text" />
+
+    <!-- Description -->
+    <TextView
+        android:id="@+id/downloadDescription"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="48dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:textColor="@color/gray_text"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/iconFile"
+        app:layout_constraintTop_toBottomOf="@id/label" />
+
+    <!-- File type badge -->
+    <TextView
+        android:id="@+id/downloadFileType"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="6dp"
+        android:background="@drawable/bg_rounded_card"
+        android:backgroundTint="#F0FDF4"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="2dp"
+        android:textColor="#16A34A"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toEndOf="@id/iconFile"
+        app:layout_constraintTop_toBottomOf="@id/downloadDescription" />
+
+    <!-- Size / status text -->
+    <TextView
+        android:id="@+id/sizeText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textColor="@color/gray_text"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toBottomOf="@id/downloadFileType"
+        app:layout_constraintStart_toEndOf="@id/downloadFileType"
+        app:layout_constraintTop_toTopOf="@id/downloadFileType" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

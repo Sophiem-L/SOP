@@ -53,11 +53,10 @@ public class SearchAdapter extends RecyclerView.Adapter<SearchAdapter.ViewHolder
         });
 
         // Setup other buttons if needed
-        holder.btnDownload.setOnClickListener(v -> {
-            // TODO: Implement download
-        });
+        holder.btnDownload.setOnClickListener(v ->
+                DownloadSheet.show(holder.itemView.getContext(), doc));
 
-        holder.iconEye.setOnClickListener(v -> {
+        android.view.View.OnClickListener openDetail = v -> {
             android.content.Intent intent = new android.content.Intent(holder.itemView.getContext(),
                     DocumentDetailActivity.class);
             intent.putExtra("id", doc.getId());
@@ -69,7 +68,9 @@ public class SearchAdapter extends RecyclerView.Adapter<SearchAdapter.ViewHolder
             intent.putExtra("category", doc.getCategory());
             intent.putExtra("version", doc.getVersion());
             holder.itemView.getContext().startActivity(intent);
-        });
+        };
+        holder.iconEye.setOnClickListener(openDetail);
+        holder.itemView.setOnClickListener(openDetail);
     }
 
     private void updateFavoriteIcon(ViewHolder holder, RecentDoc doc) {

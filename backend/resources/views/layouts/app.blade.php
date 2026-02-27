@@ -111,7 +111,6 @@
 
         {{-- 2. MAIN CONTENT AREA --}}
         <main class="flex-grow-1 {{ auth()->check() ? 'p-4 p-md-5' : 'guest-wrapper' }}" style="min-height: 100vh;">
-            @auth
             @if(!Route::is('login'))
             <div class="d-flex justify-content-end align-items-center mb-4 no-print">
                 <a href="{{ route('notifications.page') }}" class="position-relative me-4 text-decoration-none">
@@ -148,8 +147,7 @@
                     </ul>
                 </div>
             </div>
-             @endif
-            @endauth
+            @endif
 
             @yield('content')
         </main>
@@ -158,8 +156,8 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-    <script>
     @auth
+    <script>
         window.addEventListener('DOMContentLoaded', () => {
             if (window.Echo) {
                 window.Echo.private(`user.{{ auth()->id() }}`)
@@ -177,8 +175,10 @@
                     });
             }
         });
+    </script>
     @endauth
 
+    <script>
     $(document).ready(function() {
         const toastElement = document.getElementById('bookmarkToast');
         if (toastElement) {
@@ -206,5 +206,6 @@
     });
     </script>
     @yield('scripts')
+
 </body>
 </html>

@@ -10,6 +10,7 @@ public class User {
     private String firebase_uid;
     private String phone;
     private String job_title;
+    private String profile_photo_url;
     private List<Role> roles;
     private Department department;
 
@@ -39,6 +40,10 @@ public class User {
 
     public String getFirebaseUid() {
         return firebase_uid;
+    }
+
+    public String getProfilePhotoUrl() {
+        return profile_photo_url;
     }
 
     public List<Role> getRoles() {

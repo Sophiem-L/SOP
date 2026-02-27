@@ -27,6 +27,7 @@ class User extends Authenticatable
         'firebase_uid',
         'phone',
         'job_title',
+        'profile_photo_url',
     ];
 
     /**
