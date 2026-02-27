@@ -53,9 +53,8 @@ public class SearchAdapter extends RecyclerView.Adapter<SearchAdapter.ViewHolder
         });
 
         // Setup other buttons if needed
-        holder.btnDownload.setOnClickListener(v -> {
-            // TODO: Implement download
-        });
+        holder.btnDownload.setOnClickListener(v ->
+                DownloadSheet.show(holder.itemView.getContext(), doc));
 
         holder.iconEye.setOnClickListener(v -> {
             android.content.Intent intent = new android.content.Intent(holder.itemView.getContext(),

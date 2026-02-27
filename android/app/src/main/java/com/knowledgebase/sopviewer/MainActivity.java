@@ -252,10 +252,12 @@ public class MainActivity extends AppCompatActivity {
                         String category = (doc.getCategory() != null && doc.getCategory().getName() != null)
                                 ? doc.getCategory().getName()
                                 : "Uncategorized";
-                        recentDocs.add(new RecentDoc(
+                        RecentDoc recentDoc = new RecentDoc(
                                 doc.getId(), doc.getTitle(), description, date,
                                 R.drawable.file_logo, doc.getIsFavorite() > 0,
-                                fileUrl, fileType, category, version));
+                                fileUrl, fileType, category, version);
+                        recentDoc.setStatus(doc.getStatus());
+                        recentDocs.add(recentDoc);
                     }
                 }
                 completedCalls[0]++;
@@ -486,13 +488,15 @@ public class MainActivity extends AppCompatActivity {
                                         String cat = (doc.getCategory() != null && doc.getCategory().getName() != null)
                                                 ? doc.getCategory().getName()
                                                 : "Uncategorized";
-                                        searchResultsList.add(new RecentDoc(
+                                        RecentDoc sr = new RecentDoc(
                                                 doc.getId(), doc.getTitle(),
                                                 doc.getDescription() != null ? doc.getDescription() : "No description",
                                                 doc.getUpdatedAt() != null ? doc.getUpdatedAt().substring(0, 10)
                                                         : "N/A",
                                                 R.drawable.file_logo, doc.getIsFavorite() > 0,
-                                                fileUrl, fileType, cat, ver));
+                                                fileUrl, fileType, cat, ver);
+                                        sr.setStatus(doc.getStatus());
+                                        searchResultsList.add(sr);
                                     }
                                     searchAdapter.notifyDataSetChanged();
                                     tvNoResults.setVisibility(searchResultsList.isEmpty() ? View.VISIBLE : View.GONE);

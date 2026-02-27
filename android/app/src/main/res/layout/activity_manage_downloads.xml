@@ -62,7 +62,7 @@
             android:id="@+id/summaryTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Cached storage"
+            android:text="Downloaded documents"
             android:textColor="@color/text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -80,7 +80,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Documents are cached when you open them. Clear to free space."
+            android:text="Files saved to your Downloads folder. Tap a file to open it."
             android:textColor="@color/gray_text"
             android:textSize="12sp" />
     </LinearLayout>
@@ -92,7 +92,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
         android:layout_marginTop="24dp"
-        android:text="Cached documents"
+        android:text="Your downloads"
         android:textColor="@color/text_primary"
         android:textSize="14sp"
         android:textStyle="bold"
@@ -134,7 +134,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:gravity="center"
-            android:text="No cached documents"
+            android:text="No downloads yet"
             android:textColor="@color/gray_text"
             android:textSize="16sp" />
 
@@ -143,7 +143,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:gravity="center"
-            android:text="Open a document to cache it for faster viewing."
+            android:text="Tap the download icon on any document card to save it here."
             android:textColor="@color/gray_text"
             android:textSize="14sp" />
     </LinearLayout>
@@ -156,7 +156,7 @@
         android:layout_marginHorizontal="24dp"
         android:layout_marginBottom="24dp"
         android:backgroundTint="@color/brand_blue"
-        android:text="Clear all cached documents"
+        android:text="Clear all downloads"
         android:textAllCaps="false"
         android:textColor="@color/white"
         app:layout_constraintBottom_toBottomOf="parent" />

@@ -88,6 +88,11 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
             holder.btnView.setOnClickListener(v ->
                     openDetail(holder.itemView.getContext(), doc));
         }
+
+        if (holder.btnDownload != null) {
+            holder.btnDownload.setOnClickListener(v ->
+                    DownloadSheet.show(holder.itemView.getContext(), doc));
+        }
     }
 
     private void openDetail(android.content.Context context, RecentDoc doc) {
@@ -100,6 +105,7 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
         intent.putExtra("file_type", doc.getFileType());
         intent.putExtra("category", doc.getCategory());
         intent.putExtra("version", doc.getVersion());
+        intent.putExtra("status", doc.getStatus());
         context.startActivity(intent);
     }
 
@@ -125,7 +131,7 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        ImageView image, btnBookmark, btnView;
+        ImageView image, btnBookmark, btnDownload, btnView;
         TextView title, description, date;
 
         public ViewHolder(@NonNull View itemView) {
@@ -135,6 +141,7 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
             description = itemView.findViewById(R.id.docDescription);
             date = itemView.findViewById(R.id.docType);
             btnBookmark = itemView.findViewById(R.id.btnBookmark);
+            btnDownload = itemView.findViewById(R.id.btnDownload);
             btnView = itemView.findViewById(R.id.btnView);
         }
     }

@@ -2,6 +2,8 @@ package com.knowledgebase.sopviewer;
 
 import java.util.List;
 import retrofit2.Call;
+import retrofit2.http.Field;
+import retrofit2.http.FormUrlEncoded;
 import retrofit2.http.GET;
 import retrofit2.http.Header;
 import retrofit2.http.Headers;
@@ -51,7 +53,8 @@ public interface ApiService {
                         @Part("type") RequestBody type,
                         @Part("category_id") RequestBody categoryId,
                         @Part("category_name") RequestBody categoryName,
-                        @Part("description") RequestBody content,
+                        @Part("description") RequestBody description,
+                        @Part("status") RequestBody status,
                         @Part MultipartBody.Part file);
 
         @Headers("Content-Type: application/json")
@@ -61,6 +64,19 @@ public interface ApiService {
 
         @GET("api/user")
         Call<User> getProfile(@Header("Authorization") String token);
+
+        /** HR/Admin: list documents awaiting approval */
+        @GET("api/documents/pending")
+        Call<List<Document>> getPendingDocuments(@Header("Authorization") String token);
+
+        /** HR/Admin: approve or reject a document */
+        @FormUrlEncoded
+        @POST("api/documents/{id}/status")
+        Call<ResponseBody> updateDocumentStatus(
+                        @Path("id") int id,
+                        @Header("Authorization") String token,
+                        @Field("status") String status,
+                        @Field("note") String note);
 
         @Headers("Content-Type: application/json")
         @POST("api/user/update-password")

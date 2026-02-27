@@ -9,10 +9,14 @@ class Document extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'description', 'category_id', 'created_by', 'is_active'];
+    protected $fillable = [
+        'title', 'description', 'category_id', 'created_by', 'is_active',
+        'status', 'reviewed_by', 'reviewed_at', 'review_note',
+    ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'reviewed_at' => 'datetime',
     ];
 
     public function category()

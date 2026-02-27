@@ -39,8 +39,12 @@ Route::middleware(['firebase.auth'])->group(function () {
     // Documents
     Route::get('/documents', [DocumentController::class, 'index']);
     Route::post('/documents', [DocumentController::class, 'store']);
+    // Named routes must come before {id} wildcard routes
     Route::get('/documents/favorites', [DocumentController::class, 'favorites']);
+    Route::get('/documents/pending', [DocumentController::class, 'pendingApprovals']);
+    Route::get('/documents/{id}/file', [DocumentController::class, 'serveFile']);
     Route::post('/documents/{id}/favorite', [DocumentController::class, 'toggleFavorite']);
+    Route::post('/documents/{id}/status', [DocumentController::class, 'updateStatus']);
     Route::post('/user/update', [AuthController::class, 'updateProfile']);
     Route::post('/user/update-password', [AuthController::class, 'updatePassword']);
 });
