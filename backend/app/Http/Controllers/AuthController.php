@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Auth as LocalAuth;
 
 class AuthController extends Controller
 {
@@ -19,6 +20,10 @@ class AuthController extends Controller
     {
         $this->auth = $auth;
     }
+    public function showLoginForm()
+{
+    return view('auth.login');
+}
 
     /**
      * Register a new user (Employee) in Firebase and Local DB.
@@ -116,6 +121,29 @@ class AuthController extends Controller
             ],
         ]);
     }
+
+    public function webLogin(Request $request)
+{
+    // Validate the form input
+    $credentials = $request->validate([
+        'email' => 'required|email',
+        'password' => 'required',
+    ]);
+
+    // Attempt to login using the local DB password backup
+    if (LocalAuth::attempt($credentials, $request->has('remember'))) {
+        // Prevent session fixation attacks
+        $request->session()->regenerate();
+
+        // Redirect to intended page or dashboard
+        return redirect()->intended('/documents');
+    }
+
+    // If login fails, redirect back with an error message
+    return back()->withErrors([
+        'email' => 'The provided credentials do not match our records.',
+    ])->onlyInput('email');
+}
 
     /**
      * Update User Profile

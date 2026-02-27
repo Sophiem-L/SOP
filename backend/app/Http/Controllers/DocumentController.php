@@ -48,9 +48,9 @@ class DocumentController extends Controller
                 'title' => $request->title,
                 'description' => $request->description,
                 'category_id' => $request->category_id,
-                'created_by' => $userId,
-                'is_active' => true,
-                'status' => $status,
+                'created_by'  => $userId,
+                'is_active'   => true,
+                'status'      => 0,
             ]);
 
             $path = $request->file('file')->store('documents', 'public');
@@ -70,6 +70,13 @@ class DocumentController extends Controller
                 'message' => 'Document created successfully',
                 'document' => $document->load('versions'),
             ], 201);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message'  => 'Document created successfully',
+                    'document' => $document->load('versions'),
+                ], 201);
+            }
+            return redirect()->route('documents.all')->with('success', 'Document created successfully');
         });
     }
 
@@ -336,5 +343,16 @@ class DocumentController extends Controller
             ->get();
 
         return response()->json($documents);
+    }
+
+    public function approve(Document $document)
+    {
+        $document->update([
+            'status'      => 2, // 2 = Approved
+            'reviewed_by' => auth()->id(),
+            'reviewed_at' => now(),
+        ]);
+
+        return back()->with('success', 'Document approved successfully!');
     }
 }
