@@ -52,9 +52,34 @@ class DocumentByCategoryController extends Controller
     }
 
     // 4. Detailed View
-    public function show($id)
-    {
-        $document = Document::with(['category', 'versions'])->findOrFail($id);
-        return view('document-details', compact('document'));
+   public function show($id)
+{
+    // You must include 'user.roles' here!
+    $document = Document::with(['category', 'versions', 'user.roles'])->findOrFail($id);
+    return view('document-details', compact('document'));
+}
+public function download($id)
+{
+    // Load document with versions
+    $document = Document::with('versions')->findOrFail($id);
+    $latestVersion = $document->versions->first();
+
+    if (!$latestVersion || !$latestVersion->file_url) {
+        return back()->with('error', 'Download URL not found.');
     }
+
+    // Convert the full URL into a relative storage path
+    // Example: 'http://127.0.0.1:8000/storage/documents/file.pdf' -> 'documents/file.pdf'
+    $path = str_replace(url('storage/'), '', $latestVersion->file_url);
+
+    if (!Storage::disk('public')->exists($path)) {
+        return back()->with('error', 'The file does not exist on the server.');
+    }
+
+    // Use the document title as the download name
+    $extension = pathinfo($path, PATHINFO_EXTENSION);
+    $fileName = $document->title . '.' . $extension;
+
+    return Storage::disk('public')->download($path, $fileName);
+}
 }

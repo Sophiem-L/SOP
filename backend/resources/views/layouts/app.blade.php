@@ -17,9 +17,10 @@
         }
         .cursor-pointer { cursor: pointer; }
         .sidebar { transition: all 0.3s; position: sticky; top: 0; }
-        /* Prevent layout shift during AJAX */
         .bookmark-icon { transition: transform 0.2s; }
         .bookmark-icon:active { transform: scale(1.2); }
+        /* Style for guest/login container */
+        .guest-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; background-color: #f8f9fa; }
     </style>
 </head>
 <body class="bg-light">
@@ -34,7 +35,11 @@
             </div>
         </div>
     </div>
+
     <div class="d-flex">
+        {{-- 1. SHOW SIDEBAR ONLY IF AUTHENTICATED --}}
+        @auth
+        @if(!Route::is('login'))
         <nav class="sidebar p-4 d-none d-md-block" style="min-width: 250px; height: 100vh; background: #fff; border-right: 1px solid #eee;">
             <h4 class="fw-bold text-primary mb-5">SOP Centra</h4>
             
@@ -57,70 +62,94 @@
                         <i class="bi bi-bookmark-fill me-2"></i> Bookmarks
                     </a>
                 </li>
+
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->is('notifications-center') ? 'active bg-primary text-white' : 'text-dark' }} rounded-3 p-3 d-flex justify-content-between align-items-center" 
+                       href="{{ route('notifications.page') }}">
+                        <div>
+                            <i class="bi bi-bell me-2"></i> Notifications
+                        </div>
+                        @php
+                            $unreadCount = auth()->user()->notifications()->wherePivot('is_read', false)->count();
+                        @endphp
+                        @if($unreadCount > 0)
+                            <span class="badge rounded-pill bg-danger shadow-sm">
+                                {{ $unreadCount > 9 ? '9+' : $unreadCount }}
+                            </span>
+                        @endif
+                    </a>
+                </li>
+
+                {{-- Admin Only Settings --}}
+                @if(auth()->user()->hasRole('admin'))
                 <li class="nav-item">
                     <a class="nav-link d-flex justify-content-between align-items-center rounded-3 p-3 {{ request()->is('settings*') ? 'bg-primary text-white shadow-sm' : 'text-dark' }}" 
-                    data-bs-toggle="collapse" 
-                    href="#settingsSubmenu" 
-                    role="button" 
-                    aria-expanded="{{ request()->is('settings*') ? 'true' : 'false' }}">
+                    data-bs-toggle="collapse" href="#settingsSubmenu" role="button">
                         <span><i class="bi bi-gear me-2"></i> Settings</span>
                         <i class="bi bi-chevron-down small"></i>
                     </a>
-
                     <div class="collapse {{ request()->is('settings*') ? 'show' : '' }}" id="settingsSubmenu">
                         <ul class="nav flex-column ms-4 mt-2 gap-1">
                             <li class="nav-item">
-                                <a href="{{ route('users.index') }}" 
-                                class="nav-link small p-2 rounded-2 {{ request()->is('settings/users*') ? 'text-primary fw-bold' : 'text-muted' }}">
+                                <a href="{{ route('users.index') }}" class="nav-link small p-2 rounded-2 {{ request()->is('settings/users*') ? 'text-primary fw-bold' : 'text-muted' }}">
                                     <i class="bi bi-people me-2"></i> User Management
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a href="{{ route('roles.index') }}" 
-                                class="nav-link small p-2 rounded-2 {{ request()->is('settings/roles*') ? 'text-primary fw-bold' : 'text-muted' }}">
+                                <a href="{{ route('roles.index') }}" class="nav-link small p-2 rounded-2 {{ request()->is('settings/roles*') ? 'text-primary fw-bold' : 'text-muted' }}">
                                     <i class="bi bi-shield-lock me-2"></i> Role Management
                                 </a>
                             </li>
                         </ul>
                     </div>
                 </li>
+                @endif
             </ul>
         </nav>
+        @endif
+        @endauth
 
-        <main class="flex-grow-1 p-4 p-md-5" style="min-height: 100vh;">
+        {{-- 2. MAIN CONTENT AREA --}}
+        <main class="flex-grow-1 {{ auth()->check() ? 'p-4 p-md-5' : 'guest-wrapper' }}" style="min-height: 100vh;">
+            @auth
+            @if(!Route::is('login'))
             <div class="d-flex justify-content-end align-items-center mb-4 no-print">
-                
-                <div class="position-relative me-4">
-                    <i class="bi bi-bell text-muted fs-4"></i>
-                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">
-                        2
-                        <span class="visually-hidden">unread notifications</span>
-                    </span>
-                </div>
+                <a href="{{ route('notifications.page') }}" class="position-relative me-4 text-decoration-none">
+                    <i class="bi bi-bell fs-4 text-muted"></i>
+                    @php
+                        $unreadCount = auth()->user()->notifications()->wherePivot('is_read', false)->count();
+                    @endphp
+                    @if($unreadCount > 0)
+                        <span id="nav-unread-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
+                            {{ $unreadCount > 99 ? '99+' : $unreadCount }}
+                        </span>
+                    @endif
+                </a>
 
                 <div class="dropdown">
-                    <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle text-dark" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                        <img src="{{ Auth::user()->profile_photo_url ?? 'https://ui-avatars.com/api/?name='.urlencode(Auth::user()->name) }}" 
-                            alt="Profile" 
-                            class="rounded-circle me-2" 
-                            style="width: 40px; height: 40px; object-fit: cover;">
-                        
-                        <span class="fw-medium">{{ Auth::user()->name }}</span>
+                    <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle text-dark" id="userDropdown" data-bs-toggle="dropdown">
+                        <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=0D6EFD&color=fff" 
+                             alt="Profile" class="rounded-circle me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                        <span class="fw-medium">{{ auth()->user()->name }}</span>
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="userDropdown">
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0">
                         <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i> My Profile</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
-                            <form action="{{ Route::has('logout') ? route('logout') : '#' }}" method="POST">
+                            <a class="dropdown-item text-danger" href="{{ route('logout') }}"
+                            onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                                <i class="bi bi-box-arrow-right me-2"></i> Logout
+                            </a>
+
+                            <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
                                 @csrf
-                                <button type="submit" class="dropdown-item text-danger">
-                                    <i class="bi bi-box-arrow-right me-2"></i> Logout
-                                </button>
                             </form>
                         </li>
                     </ul>
                 </div>
             </div>
+             @endif
+            @endauth
 
             @yield('content')
         </main>
@@ -130,22 +159,37 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        $(document).ready(function() {
-            // Initialize Toast
-            const toastElement = document.getElementById('bookmarkToast');
-            const toast = new bootstrap.Toast(toastElement);
+    @auth
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.Echo) {
+                window.Echo.private(`user.{{ auth()->id() }}`)
+                    .listen('DocumentCreated', (e) => {
+                        const badge = document.querySelector('.nav-link[href*="notifications-center"] .badge');
+                        if (badge) {
+                            let count = parseInt(badge.innerText) || 0;
+                            badge.innerText = count + 1;
+                        } else {
+                            const navLink = document.querySelector('.nav-link[href*="notifications-center"]');
+                            if (navLink) {
+                                navLink.insertAdjacentHTML('beforeend', '<span class="badge rounded-pill bg-danger shadow-sm ms-auto">1</span>');
+                            }
+                        }
+                    });
+            }
+        });
+    @endauth
 
+    $(document).ready(function() {
+        const toastElement = document.getElementById('bookmarkToast');
+        if (toastElement) {
+            const toast = new bootstrap.Toast(toastElement);
             $(document).on('click', '.bookmark-icon', function() {
                 const icon = $(this);
                 const docId = icon.data('id');
-
                 $.ajax({
                     url: "{{ route('bookmark.toggle') }}",
                     method: "POST",
-                    data: {
-                        _token: "{{ csrf_token() }}",
-                        document_id: docId
-                    },
+                    data: { _token: "{{ csrf_token() }}", document_id: docId },
                     success: function(response) {
                         if (response.status === 'added') {
                             icon.removeClass('bi-bookmark').addClass('bi-bookmark-fill');
@@ -155,14 +199,11 @@
                             $('#toastMessage').text('Removed from Bookmarks');
                         }
                         toast.show();
-                    },
-                    error: function() {
-                        $('#toastMessage').text('Error connecting to database');
-                        toast.show();
                     }
                 });
             });
-        });
+        }
+    });
     </script>
     @yield('scripts')
 </body>

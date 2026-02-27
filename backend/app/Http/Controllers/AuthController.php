@@ -123,27 +123,43 @@ class AuthController extends Controller
     }
 
     public function webLogin(Request $request)
-{
-    // Validate the form input
-    $credentials = $request->validate([
-        'email' => 'required|email',
-        'password' => 'required',
-    ]);
+    {
+        // Validate the form input
+        $credentials = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
 
-    // Attempt to login using the local DB password backup
-    if (LocalAuth::attempt($credentials, $request->has('remember'))) {
-        // Prevent session fixation attacks
-        $request->session()->regenerate();
+        // Attempt to login using the local DB password backup
+        if (LocalAuth::attempt($credentials, $request->has('remember'))) {
+            // Prevent session fixation attacks
+            $request->session()->regenerate();
 
-        // Redirect to intended page or dashboard
-        return redirect()->intended('/documents');
+            // Redirect to intended page or dashboard
+            return redirect()->intended('/');
+        }
+
+        // If login fails, redirect back with an error message
+        return back()->withErrors([
+            'email' => 'The provided credentials do not match our records.',
+        ])->onlyInput('email');
     }
+    public function webLogout(Request $request)
+    {
+        // 1. Handle Token Cache (for API/Firebase)
+        $token = $request->bearerToken();
+        if ($token) {
+            Cache::forget('firebase_token_' . md5($token));
+        }
 
-    // If login fails, redirect back with an error message
-    return back()->withErrors([
-        'email' => 'The provided credentials do not match our records.',
-    ])->onlyInput('email');
-}
+        // 2. Clear Laravel Web Session
+        auth()->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        // 3. Redirect to login
+        return redirect('/login');
+    }
 
     /**
      * Update User Profile

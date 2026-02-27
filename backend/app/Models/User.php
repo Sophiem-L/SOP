@@ -70,4 +70,9 @@ class User extends Authenticatable
             ->withPivot('is_read')
             ->withTimestamps();
     }
+
+public function hasRole($roleName)
+{
+    return $this->roles()->where('name', $roleName)->exists();
+}
 }

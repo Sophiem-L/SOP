@@ -58,4 +58,9 @@ class Document extends Model
             default => 'Unknown',
         };
     }
+   public function user() 
+{
+    // Change 'user_id' to 'created_by' as seen in your $fillable array
+    return $this->belongsTo(User::class, 'created_by'); 
+}
 }

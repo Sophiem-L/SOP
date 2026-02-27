@@ -6,6 +6,7 @@ use App\Models\Document;
 use App\Models\DocumentVersion;
 use App\Models\Category;
 use App\Models\Favorite;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -53,7 +54,28 @@ class DocumentController extends Controller
                 'file_type'      => $request->type,
                 'uploaded_by'    => $userId,
             ]);
+           $notification = \App\Models\Notification::create([
+            'document_id' => $document->id, // Fixed: This links the notification to the document
+            'title'       => 'New Document Created',
+            'message'     => 'The document "' . $document->title . '" has been uploaded and is pending review.',
+            'type'        => 'info'
+        ]);
 
+        // 3. Attach to the creator
+        $request->user()->notifications()->attach($notification->id, [
+            'is_read' => false,
+        ]);
+
+        // 4. Attach to all ADMINS so they see it in their notification list
+       $admins = User::whereHas('roles', function($query) {
+            $query->where('role_id', 1); // This searches the user_roles table you showed me
+        })->get();
+        foreach ($admins as $admin) {
+            // Check to avoid double-attaching if the creator is also an admin
+            if ($admin->id !== $userId) {
+                $admin->notifications()->attach($notification->id, ['is_read' => false]);
+            }
+        }
             // Bust categories cache so document counts update immediately
             Cache::forget('categories_list');
 
@@ -192,13 +214,49 @@ class DocumentController extends Controller
     }
 
     public function approve(Document $document)
-    {
-        $document->update([
-            'status'      => 2, // 2 = Approved
-            'reviewed_by' => auth()->id(),
-            'reviewed_at' => now(),
-        ]);
+{
+    // 1. Update the document status
+    $document->update([
+        'status'      => 2, 
+        'reviewed_by' => auth()->id(),
+        'reviewed_at' => now(),
+    ]);
 
-        return back()->with('success', 'Document approved successfully!');
+    // 2. Clear the notification for this specific document
+    DB::table('user_notifications')
+        ->join('notifications', 'user_notifications.notification_id', '=', 'notifications.id')
+        ->where('notifications.document_id', $document->id)
+        ->where('user_notifications.user_id', auth()->id())
+        ->update(['is_read' => 1]);
+
+    return back()->with('success', 'Document approved successfully!');
+}
+
+public function reject(Document $document)
+{
+    // 1. Update to Rejected status
+    $document->update([
+        'status'      => 3,
+        'reviewed_by' => auth()->id(),
+        'reviewed_at' => now(),
+    ]);
+
+    // 2. Clear the notification
+    DB::table('user_notifications')
+        ->join('notifications', 'user_notifications.notification_id', '=', 'notifications.id')
+        ->where('notifications.document_id', $document->id)
+        ->where('user_notifications.user_id', auth()->id())
+        ->update(['is_read' => 1]);
+
+    return back()->with('error', 'Document has been rejected.');
+}
+private function markNotificationAsRead($documentId)
+    {
+        DB::table('user_notifications')
+            ->join('notifications', 'user_notifications.notification_id', '=', 'notifications.id')
+            ->where('notifications.document_id', $documentId)
+            ->where('user_notifications.user_id', auth()->id())
+            ->where('user_notifications.is_read', 0) // Only update if not already read
+            ->update(['user_notifications.is_read' => 1]);
     }
 }

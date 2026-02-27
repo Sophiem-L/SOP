@@ -1,12 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-{{-- <div class="d-flex justify-content-end align-items-center mb-4 no-print">
-    <div class="position-relative me-4">
-        <input type="text" class="form-control border-0 shadow-sm" placeholder="Search Documents..." style="width: 250px;">
-        <i class="bi bi-search position-absolute top-50 start-100 translate-middle text-muted"></i>
-
-</div> --}}
 <header class="mb-5">
    
     <div class="d-flex justify-content-between align-items-center mb-4 no-print">
@@ -21,6 +15,9 @@
 </header>
 
 <div class="row g-4">
+    <a href="{{ url('/') }}" class="btn btn-link d-flex justify-content-end text-decoration-none text-muted p-0 mb-2 size-15 fw-bold">
+        <i class="bi bi-chevron-bar-left"></i> Back
+    </a>
     @forelse($documents as $doc)
         @php
             // Using $doc->id (object) instead of $doc['id'] (array)

@@ -2,54 +2,58 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DocumentByCategoryController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\DocumentController;
-use App\Models\Category;
-use App\Models\Document;
-use App\Models\User;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
+// 1. ADD THIS MISSING LINE:
+use App\Http\Controllers\NotificationController; 
 
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| contains the "web" middleware group. Now create something great!
-|
-*/
+use App\Models\Category;
+use App\Models\Document;
+use App\Models\User;
+
 Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
-Route::post('/login', [AuthController::class, 'webLogin']); // Changed to webLogin
+Route::post('/login', [AuthController::class, 'webLogin']);
+
 Route::middleware(['auth'])->group(function () {
-Route::get('/', function () {
-    return view('dashboard', [
-        'totalDocuments' => Document::count(),
-        'pendingDocuments' => Document::where('status', 'pending')->count(),
-        'totalUsers' => User::count(),
-    ]);
-});
-Route::get('/documents', [DocumentByCategoryController::class, 'allDocuments'])->name('documents.all');
-Route::get('/documents/create', function () {
-    // Fetch categories from DB to show in the dropdown
-    $categories = Category::orderBy('name', 'asc')->get();
     
-    return view('documents.create', compact('categories'));
-})->name('documents.create');
-Route::post('/documents/store', [DocumentController::class, 'store'])->name('documents.store');
-// Dashboard "View" Button: Shows by category
-Route::get('/category/{category}', [DocumentByCategoryController::class, 'showByCategory'])->name('category.view');
-Route::get('/download/{id}', [DocumentByCategoryController::class, 'download'])->name('documents.download');
-Route::get('/documents/{id}', [DocumentByCategoryController::class, 'show'])->name('documents.show');
+    Route::get('/', [DashboardController::class, 'index'])->middleware(['auth']);
 
-Route::get('/bookmarks', [DocumentByCategoryController::class, 'bookmarks'])->name('documents.bookmarks');
-Route::post('/bookmark/toggle', [BookmarkController::class, 'toggle'])->name('bookmark.toggle');
+    Route::get('/documents', [DocumentByCategoryController::class, 'allDocuments'])->name('documents.all');
+    Route::get('/documents/create', function () {
+        $categories = Category::orderBy('name', 'asc')->get();
+        return view('documents.create', compact('categories'));
+    })->name('documents.create');
 
-Route::get('/settings/users', [UserController::class, 'index'])->name('users.index');
-Route::get('/settings/roles', [RoleController::class, 'index'])->name('roles.index');
-Route::get('/settings/roles/create', [RoleController::class, 'create'])->name('roles.create');
+    Route::post('/documents/store', [DocumentController::class, 'store'])->name('documents.store');
+    Route::get('/category/{category}', [DocumentByCategoryController::class, 'showByCategory'])->name('category.view');
+    Route::get('/documents/{id}/download', [DocumentByCategoryController::class, 'download'])
+    ->name('documents.download')
+    ->middleware('auth');
+    Route::get('/documents/{id}', [DocumentByCategoryController::class, 'show'])->name('documents.show');
+    Route::post('/documents/{document}/approve', [DocumentController::class, 'approve'])->name('documents.approve');
+    Route::post('/documents/{document}/reject', [DocumentController::class, 'reject'])->name('documents.reject');
+    Route::get('/bookmarks', [DocumentByCategoryController::class, 'bookmarks'])->name('documents.bookmarks');
+    Route::post('/bookmark/toggle', [BookmarkController::class, 'toggle'])->name('bookmark.toggle');
 
-Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    Route::get('/settings/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('/settings/roles', [RoleController::class, 'index'])->name('roles.index');
+    Route::get('/settings/roles/create', [RoleController::class, 'create'])->name('roles.create');
+
+    Route::post('/logout', [AuthController::class, 'webLogout'])->name('logout');
+
+    // 2. Notification Page (The View)
+    Route::get('/notifications-center', function () {
+        return view('notifications.index');
+    })->name('notifications.page');
+
+    // 3. Notification Data (The AJAX endpoints)
+    // Removed the redundant nested middleware group here
+    Route::get('/notifications-data', [NotificationController::class, 'getNotificationsData'])->name('notifications.data'); 
+    Route::post('/documents/{id}/update-status', [NotificationController::class, 'updateStatus']);
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::patch('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead']);
 });
