@@ -95,4 +95,10 @@ public interface ApiService {
         /** Mark all notifications as read */
         @POST("api/notifications/read-all")
         Call<ResponseBody> markAllNotificationsRead(@Header("Authorization") String token);
+
+        /** Upload a profile avatar image */
+        @Multipart
+        @POST("api/user/upload-avatar")
+        Call<ResponseBody> uploadAvatar(@Header("Authorization") String token,
+                        @Part MultipartBody.Part avatar);
 }

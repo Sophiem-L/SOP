@@ -48,6 +48,7 @@ Route::middleware(['firebase.auth'])->group(function () {
     Route::post('/documents/{id}/status', [DocumentController::class, 'updateStatus']);
     Route::post('/user/update', [AuthController::class, 'updateProfile']);
     Route::post('/user/update-password', [AuthController::class, 'updatePassword']);
+    Route::post('/user/upload-avatar', [AuthController::class, 'uploadAvatar']);
 });
 
 // Public routes (no Firebase auth required)

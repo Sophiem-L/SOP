@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Document;
 use App\Models\User;
+use App\Models\Category;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller

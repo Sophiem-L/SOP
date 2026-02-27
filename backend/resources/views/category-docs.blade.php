@@ -4,7 +4,7 @@
     <header class="d-flex justify-content-between align-items-center mb-5">
         <div>
             <h2 class="fw-bold">{{ $categoryName }}</h2>
-            <p class="text-muted">Viewing documents for the {{ $categoryName }} category.</p>
+            {{-- <p class="text-muted">Viewing documents for the {{ $categoryName }} category.</p> --}}
         </div>
         <a href="/" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back</a>
     </header>
