@@ -90,6 +90,7 @@ public class BookmarksActivity extends AppCompatActivity {
         super.onResume();
         if (bottomNav != null) {
             bottomNav.setSelectedItemId(R.id.navigation_bookmarks);
+            NavBadgeHelper.updateNotificationBadge(bottomNav, SseManager.getInstance().getUnreadCount());
         }
     }
 

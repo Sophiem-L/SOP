@@ -13,7 +13,8 @@ public class DownloadHelper {
 
     /** Resolves localhost / 127.0.0.1 to 10.0.2.2 for emulator compatibility. */
     public static String resolveUrl(String url) {
-        if (url == null || url.isEmpty()) return "";
+        if (url == null || url.isEmpty())
+            return "";
         return url
                 .replace("http://localhost:8000/", "http://10.0.2.2:8000/")
                 .replace("http://localhost/", "http://10.0.2.2:8000/")
@@ -23,7 +24,8 @@ public class DownloadHelper {
 
     /**
      * Enqueues a file download via Android's DownloadManager and saves document
-     * metadata so the Manage Downloads screen can display title / description / type.
+     * metadata so the Manage Downloads screen can display title / description /
+     * type.
      */
     public static void download(Context context, String rawUrl,
             String docTitle, String fileType, String description) {

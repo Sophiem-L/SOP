@@ -6,6 +6,8 @@ use App\Models\Document;
 use App\Models\DocumentVersion;
 use App\Models\Category;
 use App\Models\Favorite;
+use App\Models\Notification;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -16,6 +18,58 @@ class DocumentController extends Controller
     private function isHrOrAdmin($user): bool
     {
         return $user && $user->roles()->whereIn('name', ['admin', 'hr'])->exists();
+    }
+
+    /** Send an in-app notification to all HR/Admin users when an employee submits a document. */
+    private function notifyHrAdminOfPendingDocument($document, $submitter): void
+    {
+        $hrAdmins = User::whereHas('roles', function ($q) {
+            $q->whereIn('name', ['admin', 'hr']);
+        })->pluck('id');
+
+        if ($hrAdmins->isEmpty()) {
+            return;
+        }
+
+        $submitterName = $submitter->full_name ?? $submitter->name ?? 'An employee';
+
+        $notification = Notification::create([
+            'title' => 'Document Pending Review',
+            'message' => $submitterName . ' submitted "' . $document->title . '" for approval.',
+            'type' => 'document_review',
+            'document_id' => $document->id,
+        ]);
+
+        // Attach to every HR/Admin user (unread by default)
+        $notification->users()->attach($hrAdmins);
+    }
+
+    /** Notify the document's creator (employee) when HR/Admin approves or rejects. */
+    private function notifyCreatorOfStatusChange($document, $reviewer, string $status, ?string $note): void
+    {
+        $creator = User::find($document->created_by);
+
+        // Only notify employees (skip if creator is also HR/Admin)
+        if (!$creator || $this->isHrOrAdmin($creator)) {
+            return;
+        }
+
+        $reviewerName = $reviewer->full_name ?? $reviewer->name ?? 'HR/Admin';
+        $statusLabel = $status === 'approved' ? 'approved' : 'rejected';
+        $message = $reviewerName . ' ' . $statusLabel . ' your document "' . $document->title . '".';
+
+        if ($status === 'rejected' && $note) {
+            $message .= ' Reason: ' . $note;
+        }
+
+        $notification = Notification::create([
+            'title' => 'Document ' . ucfirst($statusLabel),
+            'message' => $message,
+            'type' => 'document_' . $statusLabel,
+            'document_id' => $document->id,
+        ]);
+
+        $notification->users()->attach([$creator->id]);
     }
 
     public function store(Request $request)
@@ -40,17 +94,23 @@ class DocumentController extends Controller
         ]);
 
         return DB::transaction(function () use ($request) {
-            $userId = $request->user() ? $request->user()->id : 1;
-            // draft = private (only creator sees it); pending = submitted for HR/Admin review
-            $status = $request->input('status', 'pending');
+            $userId = $request->user()->id;
+            $user = $request->user();
+
+            // HR/Admin documents skip the review queue and are immediately approved
+            // so employees can see them right away.
+            // Employees submit as 'pending' and need HR/Admin approval.
+            $clientStatus = $request->input('status', 'pending');
+            $isHrOrAdmin = $this->isHrOrAdmin($user);
+            $status = ($isHrOrAdmin && $clientStatus !== 'draft') ? 'approved' : $clientStatus;
 
             $document = Document::create([
                 'title' => $request->title,
                 'description' => $request->description,
                 'category_id' => $request->category_id,
-                'created_by'  => $userId,
-                'is_active'   => true,
-                'status'      => 0,
+                'created_by' => $userId,
+                'is_active' => true,
+                'status' => $status,
             ]);
 
             $path = $request->file('file')->store('documents', 'public');
@@ -66,17 +126,15 @@ class DocumentController extends Controller
 
             Cache::forget('categories_list');
 
+            // Notify all HR/Admin users when an employee submits a document for review
+            if (!$isHrOrAdmin && $status === 'pending') {
+                $this->notifyHrAdminOfPendingDocument($document, $user);
+            }
+
             return response()->json([
                 'message' => 'Document created successfully',
                 'document' => $document->load('versions'),
             ], 201);
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message'  => 'Document created successfully',
-                    'document' => $document->load('versions'),
-                ], 201);
-            }
-            return redirect()->route('documents.all')->with('success', 'Document created successfully');
         });
     }
 
@@ -152,8 +210,8 @@ class DocumentController extends Controller
             $join->on('favorites.document_id', '=', 'documents.id')
                 ->where('favorites.user_id', '=', $userId);
         })->addSelect([
-            DB::raw('CASE WHEN favorites.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite'),
-        ]);
+                    DB::raw('CASE WHEN favorites.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite'),
+                ]);
 
         // Sorting — default: newest first (created_at DESC)
         $sort = $request->query('sort', 'recent');
@@ -162,9 +220,17 @@ class DocumentController extends Controller
                 $join->on('audit_logs.document_id', '=', 'documents.id')
                     ->where('audit_logs.action', '=', 'view');
             })
-                ->groupBy('documents.id', 'documents.title', 'documents.description',
-                    'documents.category_id', 'documents.created_by', 'documents.created_at',
-                    'documents.updated_at', 'documents.status', 'favorites.id')
+                ->groupBy(
+                    'documents.id',
+                    'documents.title',
+                    'documents.description',
+                    'documents.category_id',
+                    'documents.created_by',
+                    'documents.created_at',
+                    'documents.updated_at',
+                    'documents.status',
+                    'favorites.id'
+                )
                 ->selectRaw('count(audit_logs.id) as view_count')
                 ->orderByDesc('view_count')
                 ->orderByDesc('documents.created_at');
@@ -225,28 +291,35 @@ class DocumentController extends Controller
 
         $request->validate([
             'status' => 'required|in:approved,rejected,pending',
-            'note'   => 'nullable|string|max:500',
+            'note' => 'nullable|string|max:500',
         ]);
 
         $document = Document::findOrFail($id);
         $document->update([
-            'status'      => $request->status,
+            'status' => $request->status,
             'reviewed_by' => $user->id,
             'reviewed_at' => now(),
             'review_note' => $request->note,
         ]);
 
+        // Notify the employee who submitted the document
+        $this->notifyCreatorOfStatusChange($document, $user, $request->status, $request->note);
+
         return response()->json([
             'message' => 'Document ' . $request->status,
-            'status'  => $request->status,
+            'status' => $request->status,
         ]);
     }
 
     /**
-     * Serve the latest file for a document directly from disk.
-     * Using PHP application-level file streaming avoids the "unexpected end of stream"
-     * issue that occurs when PHP artisan serve on Windows serves binary files through
-     * the storage directory junction created by `php artisan storage:link`.
+     * Serve the latest file as a Base64-encoded JSON payload.
+     *
+     * WHY Base64 JSON instead of a binary response:
+     * PHP artisan serve on Windows applies chunked transfer encoding to every
+     * response regardless of Content-Length, causing Android HTTP clients to throw
+     * "unexpected end of stream". Returning JSON avoids binary transfer entirely:
+     * JSON is plain text, artisan serve handles it without chunking problems, and
+     * Android decodes the Base64 back to raw bytes before PdfRenderer renders it.
      */
     public function serveFile(Request $request, $id)
     {
@@ -258,25 +331,23 @@ class DocumentController extends Controller
             return response()->json(['message' => 'File not found'], 404);
         }
 
-        // Extract relative path from the stored URL.
-        // file_url example: http://localhost:8000/storage/documents/xxx.pdf
-        // PHP_URL_PATH => /storage/documents/xxx.pdf
-        // After stripping /storage => documents/xxx.pdf
-        $urlPath = parse_url($version->file_url, PHP_URL_PATH);
+        $urlPath      = parse_url($version->file_url, PHP_URL_PATH);
         $relativePath = ltrim(str_replace('/storage', '', $urlPath), '/');
-        $fullPath = storage_path('app/public/' . $relativePath);
+        $fullPath     = storage_path('app/public/' . $relativePath);
 
         if (!file_exists($fullPath)) {
             return response()->json(['message' => 'File not found on disk'], 404);
         }
 
-        $mimeType = match ($version->file_type) {
-            'pdf'  => 'application/pdf',
-            'doc'  => 'application/msword',
-            default => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        };
+        $fileBytes = file_get_contents($fullPath);
+        if ($fileBytes === false) {
+            return response()->json(['message' => 'Cannot read file'], 500);
+        }
 
-        return response()->file($fullPath, ['Content-Type' => $mimeType]);
+        return response()->json([
+            'data' => base64_encode($fileBytes),
+            'mime' => $version->file_type,
+        ]);
     }
 
     public function toggleFavorite(Request $request, $id)
@@ -348,7 +419,7 @@ class DocumentController extends Controller
     public function approve(Document $document)
     {
         $document->update([
-            'status'      => 2, // 2 = Approved
+            'status' => 2, // 2 = Approved
             'reviewed_by' => auth()->id(),
             'reviewed_at' => now(),
         ]);

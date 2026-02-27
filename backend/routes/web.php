@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Document;
 use App\Models\User;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
 
@@ -24,13 +25,7 @@ use App\Http\Controllers\RoleController;
 Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [AuthController::class, 'webLogin']); // Changed to webLogin
 Route::middleware(['auth'])->group(function () {
-Route::get('/', function () {
-    return view('dashboard', [
-        'totalDocuments' => Document::count(),
-        'pendingDocuments' => Document::where('status', 'pending')->count(),
-        'totalUsers' => User::count(),
-    ]);
-});
+Route::get('/', [DashboardController::class, 'index']);
 Route::get('/documents', [DocumentByCategoryController::class, 'allDocuments'])->name('documents.all');
 Route::get('/documents/create', function () {
     // Fetch categories from DB to show in the dropdown

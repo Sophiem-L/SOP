@@ -1,5 +1,7 @@
 package com.knowledgebase.sopviewer;
 
+import android.content.Context;
+import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -30,14 +32,37 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
         holder.tvTitle.setText(notification.getTitle());
         holder.tvContent.setText(notification.getContent());
         holder.tvTime.setText(notification.getTime());
-        holder.tvBadge.setText(notification.getStatus());
 
-        if ("Urgent".equalsIgnoreCase(notification.getStatus())) {
-            holder.tvBadge.getBackground()
-                    .setTint(ContextCompat.getColor(holder.itemView.getContext(), R.color.brand_pink));
+        String status = notification.getStatus();
+        if (status.isEmpty()) {
+            holder.tvBadge.setVisibility(View.GONE);
         } else {
-            holder.tvBadge.getBackground()
-                    .setTint(ContextCompat.getColor(holder.itemView.getContext(), R.color.brand_blue));
+            holder.tvBadge.setVisibility(View.VISIBLE);
+            holder.tvBadge.setText(status);
+            int color = "Review".equals(status)
+                    ? ContextCompat.getColor(holder.itemView.getContext(), R.color.brand_pink)
+                    : ContextCompat.getColor(holder.itemView.getContext(), R.color.brand_blue);
+            holder.tvBadge.getBackground().setTint(color);
+        }
+
+        // Tap the card → open the linked document (if any)
+        Integer docId = notification.getDocumentId();
+        if (docId != null) {
+            holder.itemView.setOnClickListener(v -> {
+                Context ctx = holder.itemView.getContext();
+                Intent intent = new Intent(ctx, DocumentDetailActivity.class);
+                intent.putExtra("id", docId);
+                intent.putExtra("title", notification.getTitle());
+                intent.putExtra("description", notification.getContent());
+                intent.putExtra("date", notification.getTime());
+                intent.putExtra("file_url", "");
+                intent.putExtra("file_type", "");
+                intent.putExtra("category", "");
+                intent.putExtra("version", "");
+                ctx.startActivity(intent);
+            });
+        } else {
+            holder.itemView.setOnClickListener(null);
         }
     }
 

@@ -9,7 +9,8 @@ import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.button.MaterialButton;
 
 /**
- * Shows a BottomSheetDialog with full document details (title, badges, description,
+ * Shows a BottomSheetDialog with full document details (title, badges,
+ * description,
  * version) and a Download button that triggers the actual file download.
  */
 public class DownloadSheet {
@@ -62,12 +63,14 @@ public class DownloadSheet {
         // Description
         TextView tvDesc = view.findViewById(R.id.sheetDescription);
         tvDesc.setText(description != null && !description.isEmpty()
-                ? description : "No description available.");
+                ? description
+                : "No description available.");
 
         // Version
         TextView tvVersion = view.findViewById(R.id.sheetVersion);
         String versionText = "Version: " + (version != null && !version.isEmpty() ? version : "1.0.0");
-        if (date != null && !date.isEmpty()) versionText += "\n" + date;
+        if (date != null && !date.isEmpty())
+            versionText += "\n" + date;
         tvVersion.setText(versionText);
 
         // Close button

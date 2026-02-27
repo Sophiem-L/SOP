@@ -3,7 +3,7 @@
 @section('content')
     <header class="d-flex justify-content-between align-items-center mb-5">
         <div>
-            <h2 class="fw-bold">Hi Adaline,</h2>
+            <h2 class="fw-bold">Hi {{ auth()->user()->name }},</h2>
             <p class="text-muted">Welcome back to your workspace.</p>
         </div>
         <div class="d-flex gap-2">
@@ -51,22 +51,21 @@
                     </tr>
                 </thead>
                 <tbody>
+                    @forelse($recentCategories as $cat)
+                    @php $catName = $cat->category->name ?? 'Uncategorized'; @endphp
                     <tr>
-                        <td><i class="bi bi-shield-lock me-2 text-primary"></i> Policies</td>
-                        <td>32 Documents</td>
-                        <td class="text-muted">Feb 01, 2023</td>
+                        <td><i class="bi bi-folder me-2 text-primary"></i> {{ $catName }}</td>
+                        <td>{{ $cat->total_docs }} {{ $cat->total_docs == 1 ? 'Document' : 'Documents' }}</td>
+                        <td class="text-muted">{{ \Carbon\Carbon::parse($cat->last_edited)->format('M d, Y') }}</td>
                         <td>
-                           <a href="{{ route('category.view', 'Policies') }}" class="btn btn-sm btn-outline-secondary">View</a>
+                            <a href="{{ route('category.view', $catName) }}" class="btn btn-sm btn-outline-secondary">View</a>
                         </td>
                     </tr>
+                    @empty
                     <tr>
-                        <td><i class="bi bi-people me-2 text-info"></i> HR Document</td>
-                        <td>10 Documents</td>
-                        <td class="text-muted">Mar 05, 2023</td>
-                        <td>
-                            <a href="{{ route('category.view', 'HR Document') }}" class="btn btn-sm btn-outline-secondary">View</a>
-                        </td>
+                        <td colspan="4" class="text-center text-muted py-3">No documents found.</td>
                     </tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>

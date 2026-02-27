@@ -4,13 +4,19 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import java.util.ArrayList;
 import java.util.List;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class NotificationsActivity extends AppCompatActivity {
 
@@ -20,37 +26,41 @@ public class NotificationsActivity extends AppCompatActivity {
     private TextView tabNotifications, tabAuditLogs;
     private View layoutNotifications, layoutAuditLogs;
     private BottomNavigationView bottomNav;
+    private FirebaseAuth mAuth;
+    private final List<Notification> notificationList = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_notifications);
 
+        mAuth = FirebaseAuth.getInstance();
+
         recyclerNotifications = findViewById(R.id.recyclerNotifications);
-        recyclerAuditLogs = findViewById(R.id.recyclerAuditLogs);
-        layoutNotifications = findViewById(R.id.layoutNotifications);
-        layoutAuditLogs = findViewById(R.id.layoutAuditLogs);
+        recyclerAuditLogs     = findViewById(R.id.recyclerAuditLogs);
+        layoutNotifications   = findViewById(R.id.layoutNotifications);
+        layoutAuditLogs       = findViewById(R.id.layoutAuditLogs);
 
         recyclerNotifications.setLayoutManager(new LinearLayoutManager(this));
         recyclerAuditLogs.setLayoutManager(new LinearLayoutManager(this));
 
+        // Adapter backed by the live list — populated after API call
+        notificationAdapter = new NotificationAdapter(notificationList);
+        recyclerNotifications.setAdapter(notificationAdapter);
+
         setupBottomNavigation();
 
-        // Setup Tabs
         tabNotifications = findViewById(R.id.tabNotifications);
-        tabAuditLogs = findViewById(R.id.tabAuditLogs);
-
+        tabAuditLogs     = findViewById(R.id.tabAuditLogs);
         tabNotifications.setOnClickListener(v -> setTabActive(true));
         tabAuditLogs.setOnClickListener(v -> setTabActive(false));
 
-        // Initial state
         setTabActive(true);
+        loadMockAuditLogs();
+        loadNotifications();
 
-        loadMockNotifications();
-
-        findViewById(R.id.btnSettings).setOnClickListener(v -> {
-            SettingsMenuHelper.showSettingsMenu(NotificationsActivity.this, v);
-        });
+        findViewById(R.id.btnSettings).setOnClickListener(v ->
+                SettingsMenuHelper.showSettingsMenu(NotificationsActivity.this, v));
     }
 
     private void setupBottomNavigation() {
@@ -115,28 +125,47 @@ public class NotificationsActivity extends AppCompatActivity {
         }
     }
 
-    private void loadMockNotifications() {
-        List<Notification> items = new ArrayList<>();
-        items.add(new Notification("Document Title",
-                "Mandatory protocols for handling sensitive company data and difcsdfjd sfidshfi", "2 hours ago",
-                "New"));
-        items.add(new Notification("Document Title",
-                "Mandatory protocols for handling sensitive company data and difcsdfjd sfidshfi", "2 hours ago",
-                "Urgent"));
-        items.add(new Notification("Document Title",
-                "Mandatory protocols for handling sensitive company data and difcsdfjd sfidshfi", "2 hours ago",
-                "New"));
-        items.add(new Notification("Document Title",
-                "Mandatory protocols for handling sensitive company data and difcsdfjd sfidshfi", "2 hours ago",
-                "Urgent"));
-        items.add(new Notification("Document Title",
-                "Mandatory protocols for handling sensitive company data and difcsdfjd sfidshfi", "2 hours ago",
-                "New"));
+    private void loadNotifications() {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
 
-        notificationAdapter = new NotificationAdapter(items);
-        recyclerNotifications.setAdapter(notificationAdapter);
+        user.getIdToken(false).addOnCompleteListener(task -> {
+            if (!task.isSuccessful()) return;
+            String token = "Bearer " + task.getResult().getToken();
 
-        loadMockAuditLogs();
+            RetrofitClient.getApiService().getNotifications(token)
+                    .enqueue(new Callback<List<Notification>>() {
+                        @Override
+                        public void onResponse(Call<List<Notification>> call,
+                                               Response<List<Notification>> response) {
+                            if (response.isSuccessful() && response.body() != null) {
+                                notificationList.clear();
+                                notificationList.addAll(response.body());
+                                notificationAdapter.notifyDataSetChanged();
+                                // Mark all as read silently after the user sees them
+                                markAllRead(token);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Call<List<Notification>> call, Throwable t) {
+                            android.util.Log.e("Notifications", "Load failed: " + t.getMessage());
+                            Toast.makeText(NotificationsActivity.this,
+                                    "Failed to load notifications", Toast.LENGTH_SHORT).show();
+                        }
+                    });
+        });
+    }
+
+    private void markAllRead(String token) {
+        RetrofitClient.getApiService().markAllNotificationsRead(token)
+                .enqueue(new Callback<okhttp3.ResponseBody>() {
+                    @Override
+                    public void onResponse(Call<okhttp3.ResponseBody> call,
+                                           Response<okhttp3.ResponseBody> response) { }
+                    @Override
+                    public void onFailure(Call<okhttp3.ResponseBody> call, Throwable t) { }
+                });
     }
 
     private void loadMockAuditLogs() {
@@ -157,6 +186,8 @@ public class NotificationsActivity extends AppCompatActivity {
         super.onResume();
         if (bottomNav != null) {
             bottomNav.setSelectedItemId(R.id.navigation_notifications);
+            // User is viewing notifications — clear the badge immediately
+            NavBadgeHelper.updateNotificationBadge(bottomNav, 0);
         }
     }
 

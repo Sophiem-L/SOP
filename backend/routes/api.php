@@ -29,8 +29,9 @@ Route::middleware(['firebase.auth'])->group(function () {
 
     // Notifications
     Route::get('/notifications', [NotificationController::class, 'index']);
-    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::get('/notifications/stream', [NotificationController::class, 'stream']); // SSE real-time badge
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
 
     Route::get('/user', function (Request $request) {
         return $request->user()->load(['department', 'roles']);

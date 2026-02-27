@@ -43,7 +43,8 @@ public class DocumentDetailActivity extends AppCompatActivity {
         String category = getIntent().getStringExtra("category");
         String version = getIntent().getStringExtra("version");
         String status = getIntent().getStringExtra("status");
-        if (status == null) status = "";
+        if (status == null)
+            status = "";
 
         // Resolve the URL once for the whole activity
         resolvedFileUrl = resolveUrl(fileUrl);
@@ -75,7 +76,8 @@ public class DocumentDetailActivity extends AppCompatActivity {
             versionText += "\n" + date;
         docVersionInfo.setText(versionText);
 
-        // Approval actions — check if current user is HR/Admin, then show if doc is pending
+        // Approval actions — check if current user is HR/Admin, then show if doc is
+        // pending
         LinearLayout layoutApprovalActions = findViewById(R.id.layoutApprovalActions);
         MaterialButton btnApprove = findViewById(R.id.btnApprove);
         MaterialButton btnReject = findViewById(R.id.btnReject);
@@ -98,11 +100,10 @@ public class DocumentDetailActivity extends AppCompatActivity {
         final String finalVersion = version;
         final String finalDate = date;
         ImageView btnDownload = findViewById(R.id.btnDownload);
-        btnDownload.setOnClickListener(v ->
-                DownloadSheet.show(this,
-                        finalTitle, finalDescription, finalCategory,
-                        finalFileType, finalVersion, finalDate, finalStatus,
-                        resolvedFileUrl));
+        btnDownload.setOnClickListener(v -> DownloadSheet.show(this,
+                finalTitle, finalDescription, finalCategory,
+                finalFileType, finalVersion, finalDate, finalStatus,
+                resolvedFileUrl));
 
         LinearLayout pdfContainer = findViewById(R.id.pdfContainer);
         ProgressBar pdfLoadingBar = findViewById(R.id.pdfLoadingBar);
@@ -114,17 +115,50 @@ public class DocumentDetailActivity extends AppCompatActivity {
         MaterialButton btnOpenDoc = findViewById(R.id.btnOpenDoc);
 
         boolean isPdf = "pdf".equalsIgnoreCase(fileType);
+        final boolean hasPdf = isPdf && !resolvedFileUrl.isEmpty();
+        final boolean hasDoc = !isPdf && !resolvedFileUrl.isEmpty();
 
-        if (isPdf && !resolvedFileUrl.isEmpty()) {
-            // PDF: render inline with PdfRenderer
+        // Show the preview container immediately so the loading spinner is visible
+        // right away — the actual content loads asynchronously after the token is fetched.
+        if (hasPdf) {
             pdfContainer.setVisibility(View.VISIBLE);
-            loadPdfInline(resolvedFileUrl, pdfPagesContainer, pdfLoadingBar, pdfErrorText);
-        } else if (!resolvedFileUrl.isEmpty()) {
-            // DOC/other: download locally then open with an external app
+        } else if (hasDoc) {
             docViewerContainer.setVisibility(View.VISIBLE);
-            downloadDocForViewing(resolvedFileUrl, fileType, docLoadingBar, docStatusText, btnOpenDoc);
         }
 
+        if ((hasPdf || hasDoc) && docId != -1) {
+            // Use the authenticated streaming endpoint instead of the raw storage URL.
+            // This avoids the Windows php artisan serve truncation bug and handles auth.
+            String serveUrl = RetrofitClient.BASE_URL + "api/documents/" + docId + "/file";
+
+            FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+            if (currentUser == null) {
+                showError(pdfLoadingBar, pdfErrorText, "Not signed in");
+                return;
+            }
+
+            currentUser.getIdToken(false)
+                    .addOnCompleteListener(tokenTask -> {
+                        if (!tokenTask.isSuccessful()) {
+                            if (hasPdf)
+                                showError(pdfLoadingBar, pdfErrorText, "Authentication failed");
+                            else
+                                runOnUiThread(() -> {
+                                    docLoadingBar.setVisibility(View.GONE);
+                                    docStatusText.setText("Authentication failed");
+                                    docStatusText.setVisibility(View.VISIBLE);
+                                });
+                            return;
+                        }
+                        String bearerToken = "Bearer " + tokenTask.getResult().getToken();
+                        if (hasPdf) {
+                            loadPdfInline(serveUrl, bearerToken, pdfPagesContainer, pdfLoadingBar, pdfErrorText);
+                        } else {
+                            downloadDocForViewing(serveUrl, bearerToken, fileType, docLoadingBar, docStatusText,
+                                    btnOpenDoc);
+                        }
+                    });
+        }
     }
 
     /** Convert any localhost variant to the emulator host alias. */
@@ -138,34 +172,45 @@ public class DocumentDetailActivity extends AppCompatActivity {
                 .replace("http://127.0.0.1/", "http://10.0.2.2:8000/");
     }
 
-    /** Downloads the PDF using HttpURLConnection (same HTTP stack as DownloadManager) and renders inline. */
-    private void loadPdfInline(String url, LinearLayout container, ProgressBar loadingBar,
-            TextView errorView) {
+    /**
+     * Fetches the PDF from the API as a Base64 JSON payload and renders it inline.
+     *
+     * The backend returns {"data":"<base64>","mime":"pdf"} instead of raw bytes.
+     * This avoids the "unexpected end of stream" error: PHP artisan serve on Windows
+     * wraps every binary response in chunked transfer encoding whose final chunk
+     * Android never receives correctly. JSON is plain text — artisan serve transfers
+     * it without chunking issues — and Base64.decode() restores the original bytes.
+     */
+    private void loadPdfInline(String url, String bearerToken, LinearLayout container,
+            ProgressBar loadingBar, TextView errorView) {
         Log.d(TAG, "loadPdfInline URL: " + url);
         new Thread(() -> {
-            try {
-                java.net.HttpURLConnection conn =
-                        (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(60000);
-                int code = conn.getResponseCode();
-                if (code < 200 || code >= 300) {
-                    conn.disconnect();
-                    showError(loadingBar, errorView, "HTTP " + code);
+            okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+                    .build();
+            okhttp3.Request request = new okhttp3.Request.Builder()
+                    .url(url)
+                    .header("Authorization", bearerToken)
+                    .build();
+            try (okhttp3.Response response = client.newCall(request).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    showError(loadingBar, errorView, "HTTP " + response.code());
                     return;
                 }
+                // Response is JSON: {"data":"<base64 PDF bytes>","mime":"pdf"}
+                String json = response.body().string();
+                org.json.JSONObject obj = new org.json.JSONObject(json);
+                String base64Data = obj.getString("data");
+                byte[] pdfBytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT);
+
                 java.io.File cacheFile = new java.io.File(getCacheDir(), "preview.pdf");
-                try (java.io.InputStream is = new java.io.BufferedInputStream(conn.getInputStream());
-                     java.io.FileOutputStream fos = new java.io.FileOutputStream(cacheFile)) {
-                    byte[] buf = new byte[8192];
-                    int n;
-                    while ((n = is.read(buf)) != -1) fos.write(buf, 0, n);
-                } finally {
-                    conn.disconnect();
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(cacheFile)) {
+                    fos.write(pdfBytes);
                 }
                 renderPdfFromFile(cacheFile, container, loadingBar, errorView);
             } catch (Exception e) {
-                Log.e(TAG, "PDF download error: " + e.getMessage());
+                Log.e(TAG, "PDF load error: " + e.getMessage());
                 showError(loadingBar, errorView, "Load error: " + e.getMessage());
             }
         }).start();
@@ -217,7 +262,8 @@ public class DocumentDetailActivity extends AppCompatActivity {
                     lp.setMargins(0, 0, 0, 8);
                     iv.setLayoutParams(lp);
                     container.addView(iv);
-                    if (isLast) loadingBar.setVisibility(View.GONE);
+                    if (isLast)
+                        loadingBar.setVisibility(View.GONE);
                 });
             }
             renderer.close();
@@ -257,15 +303,20 @@ public class DocumentDetailActivity extends AppCompatActivity {
         }
     }
 
-    /** Fetches the current user's profile; shows approve/reject if HR/Admin + pending, and Suggestions button for HR/Admin. */
+    /**
+     * Fetches the current user's profile; shows approve/reject if HR/Admin +
+     * pending, and Suggestions button for HR/Admin.
+     */
     private void fetchRoleAndSetupUI(LinearLayout actionsLayout,
             MaterialButton btnApprove, MaterialButton btnReject, int docId,
             String docStatus, android.widget.Button btnSuggestions) {
         FirebaseUser firebaseUser = FirebaseAuth.getInstance().getCurrentUser();
-        if (firebaseUser == null) return;
+        if (firebaseUser == null)
+            return;
 
         firebaseUser.getIdToken(false).addOnCompleteListener(task -> {
-            if (!task.isSuccessful()) return;
+            if (!task.isSuccessful())
+                return;
             String token = "Bearer " + task.getResult().getToken();
 
             RetrofitClient.getApiService().getProfile(token)
@@ -273,7 +324,8 @@ public class DocumentDetailActivity extends AppCompatActivity {
                         @Override
                         public void onResponse(retrofit2.Call<User> call,
                                 retrofit2.Response<User> response) {
-                            if (!response.isSuccessful() || response.body() == null) return;
+                            if (!response.isSuccessful() || response.body() == null)
+                                return;
                             User user = response.body();
                             boolean isHrOrAdmin = false;
                             if (user.getRoles() != null) {
@@ -288,10 +340,9 @@ public class DocumentDetailActivity extends AppCompatActivity {
                                 // Show approve/reject only when document is pending
                                 if ("pending".equals(docStatus) && docId != -1) {
                                     actionsLayout.setVisibility(View.VISIBLE);
-                                    btnApprove.setOnClickListener(v ->
-                                            submitStatusUpdate(docId, token, "approved", null));
-                                    btnReject.setOnClickListener(v ->
-                                            showRejectDialog(docId, token));
+                                    btnApprove.setOnClickListener(
+                                            v -> submitStatusUpdate(docId, token, "approved", null));
+                                    btnReject.setOnClickListener(v -> showRejectDialog(docId, token));
                                 }
                                 // Show Suggestions button for HR/Admin only
                                 if (btnSuggestions != null) {
@@ -325,13 +376,16 @@ public class DocumentDetailActivity extends AppCompatActivity {
                 .show();
     }
 
-    /** Downloads a DOC/DOCX file using HttpURLConnection and shows an "Open Document" button. */
-    private void downloadDocForViewing(String url, String fileType, ProgressBar loadingBar,
-            TextView statusText, MaterialButton openButton) {
+    /**
+     * Downloads a DOC/DOCX file via the authenticated API streaming endpoint
+     * and shows an "Open Document" button.
+     */
+    private void downloadDocForViewing(String url, String bearerToken, String fileType,
+            ProgressBar loadingBar, TextView statusText, MaterialButton openButton) {
         new Thread(() -> {
             try {
-                java.net.HttpURLConnection conn =
-                        (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                conn.setRequestProperty("Authorization", bearerToken);
                 conn.setConnectTimeout(15000);
                 conn.setReadTimeout(60000);
                 int code = conn.getResponseCode();
@@ -347,10 +401,11 @@ public class DocumentDetailActivity extends AppCompatActivity {
                 String ext = "doc".equalsIgnoreCase(fileType) ? "doc" : "docx";
                 java.io.File cacheFile = new java.io.File(getCacheDir(), "preview." + ext);
                 try (java.io.InputStream is = new java.io.BufferedInputStream(conn.getInputStream());
-                     java.io.FileOutputStream fos = new java.io.FileOutputStream(cacheFile)) {
+                        java.io.FileOutputStream fos = new java.io.FileOutputStream(cacheFile)) {
                     byte[] buf = new byte[8192];
                     int n;
-                    while ((n = is.read(buf)) != -1) fos.write(buf, 0, n);
+                    while ((n = is.read(buf)) != -1)
+                        fos.write(buf, 0, n);
                 } finally {
                     conn.disconnect();
                 }
@@ -409,7 +464,8 @@ public class DocumentDetailActivity extends AppCompatActivity {
                             TextView badge = findViewById(R.id.docStatusBadge);
                             applyStatusBadge(badge, newStatus);
                             LinearLayout actions = findViewById(R.id.layoutApprovalActions);
-                            if (actions != null) actions.setVisibility(View.GONE);
+                            if (actions != null)
+                                actions.setVisibility(View.GONE);
                         } else {
                             Toast.makeText(DocumentDetailActivity.this,
                                     "Failed: " + response.code(), Toast.LENGTH_SHORT).show();

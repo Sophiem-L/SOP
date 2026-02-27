@@ -222,6 +222,7 @@ public class ProfileActivity extends AppCompatActivity {
         super.onResume();
         if (bottomNav != null) {
             bottomNav.setSelectedItemId(R.id.navigation_profile);
+            NavBadgeHelper.updateNotificationBadge(bottomNav, SseManager.getInstance().getUnreadCount());
         }
     }
 

@@ -262,6 +262,7 @@ public class SearchActivity extends AppCompatActivity {
         super.onResume();
         if (bottomNav != null) {
             bottomNav.setSelectedItemId(R.id.navigation_search);
+            NavBadgeHelper.updateNotificationBadge(bottomNav, SseManager.getInstance().getUnreadCount());
         }
     }
 

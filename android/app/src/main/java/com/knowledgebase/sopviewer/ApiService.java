@@ -82,4 +82,17 @@ public interface ApiService {
         @POST("api/user/update-password")
         Call<ResponseBody> updatePassword(@Header("Authorization") String token,
                         @retrofit2.http.Body java.util.Map<String, String> body);
+
+        /** Get the authenticated user's notifications */
+        @GET("api/notifications")
+        Call<List<Notification>> getNotifications(@Header("Authorization") String token);
+
+        /** Mark a single notification as read */
+        @POST("api/notifications/{id}/read")
+        Call<ResponseBody> markNotificationRead(@Path("id") int id,
+                        @Header("Authorization") String token);
+
+        /** Mark all notifications as read */
+        @POST("api/notifications/read-all")
+        Call<ResponseBody> markAllNotificationsRead(@Header("Authorization") String token);
 }
