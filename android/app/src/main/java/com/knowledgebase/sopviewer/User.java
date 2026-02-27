@@ -12,6 +12,7 @@ public class User {
     private String job_title;
     private List<Role> roles;
     private Department department;
+    private String avatar_url;
 
     public int getId() {
         return id;
@@ -47,6 +48,10 @@ public class User {
 
     public Department getDepartment() {
         return department;
+    }
+
+    public String getAvatarUrl() {
+        return avatar_url;
     }
 
     public static class Role {

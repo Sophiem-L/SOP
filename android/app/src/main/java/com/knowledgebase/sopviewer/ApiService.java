@@ -83,6 +83,12 @@ public interface ApiService {
         Call<ResponseBody> updatePassword(@Header("Authorization") String token,
                         @retrofit2.http.Body java.util.Map<String, String> body);
 
+        @Multipart
+        @POST("api/user/avatar")
+        Call<User> uploadAvatar(
+                        @Header("Authorization") String token,
+                        @Part MultipartBody.Part avatar);
+
         /** Get the authenticated user's notifications */
         @GET("api/notifications")
         Call<List<Notification>> getNotifications(@Header("Authorization") String token);

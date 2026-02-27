@@ -1,18 +1,28 @@
 package com.knowledgebase.sopviewer;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import com.bumptech.glide.Glide;
+import com.google.android.material.imageview.ShapeableImageView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -20,8 +30,22 @@ import retrofit2.Response;
 public class ProfileFragment extends Fragment {
 
     private TextView userName, userEmail, userRoleBadge, userPhone, userJobTitle, userDept;
+    private ShapeableImageView imgAvatar;
     private View editProfileItem, changePasswordItem, manageDownloadsItem;
     private FirebaseAuth mAuth;
+
+    private final ActivityResultLauncher<String> imagePickerLauncher = registerForActivityResult(
+            new ActivityResultContracts.GetContent(),
+            uri -> {
+                if (uri != null) {
+                    Glide.with(this)
+                            .load(uri)
+                            .circleCrop()
+                            .placeholder(R.drawable.ic_profile)
+                            .into(imgAvatar);
+                    uploadAvatar(uri);
+                }
+            });
 
     private final ActivityResultLauncher<Intent> editProfileLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -54,6 +78,7 @@ public class ProfileFragment extends Fragment {
         }
 
         // Bind views
+        imgAvatar = view.findViewById(R.id.imgAvatar);
         userName = view.findViewById(R.id.userName);
         userEmail = view.findViewById(R.id.userEmail);
         userPhone = view.findViewById(R.id.userPhone);
@@ -66,6 +91,9 @@ public class ProfileFragment extends Fragment {
 
         view.findViewById(R.id.btnSettings).setOnClickListener(v ->
                 SettingsMenuHelper.showSettingsMenu(requireActivity(), v));
+
+        view.findViewById(R.id.btnEditAvatar).setOnClickListener(v ->
+                imagePickerLauncher.launch("image/*"));
 
         loadUserData(currentUser);
         loadUserDataFromBackend();
@@ -113,6 +141,56 @@ public class ProfileFragment extends Fragment {
             else
                 userRoleBadge.setText("");
         }
+        if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
+            Glide.with(this)
+                    .load(user.getAvatarUrl())
+                    .circleCrop()
+                    .placeholder(R.drawable.ic_profile)
+                    .into(imgAvatar);
+        }
+    }
+
+    private void uploadAvatar(Uri uri) {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
+        user.getIdToken(false).addOnCompleteListener(task -> {
+            if (!task.isSuccessful()) return;
+            String token = "Bearer " + task.getResult().getToken();
+            try {
+                InputStream is = requireContext().getContentResolver().openInputStream(uri);
+                File tempFile = File.createTempFile("avatar", ".jpg", requireContext().getCacheDir());
+                FileOutputStream fos = new FileOutputStream(tempFile);
+                byte[] buf = new byte[4096];
+                int read;
+                while ((read = is.read(buf)) != -1) fos.write(buf, 0, read);
+                fos.close();
+                is.close();
+
+                RequestBody reqBody = RequestBody.create(tempFile, MediaType.parse("image/*"));
+                MultipartBody.Part part = MultipartBody.Part.createFormData("avatar", tempFile.getName(), reqBody);
+
+                RetrofitClient.getApiService().uploadAvatar(token, part).enqueue(new Callback<User>() {
+                    @Override
+                    public void onResponse(Call<User> call, Response<User> response) {
+                        if (!isAdded()) return;
+                        if (response.isSuccessful()) {
+                            Toast.makeText(requireContext(), "Profile photo updated", Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(requireContext(), "Failed to upload photo", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<User> call, Throwable t) {
+                        if (!isAdded()) return;
+                        Toast.makeText(requireContext(), "Upload error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (Exception e) {
+                if (!isAdded()) return;
+                Toast.makeText(requireContext(), "Failed to process image", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void setupClickListeners() {
