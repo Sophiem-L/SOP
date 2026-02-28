@@ -25,6 +25,10 @@
             <div class="card border p-3 mb-4">
                 <h6 class="fw-bold text-muted small text-uppercase">Document Meta</h6>
                 <hr>
+                @php
+                    $docStatus = $document['status'] ?? $document->status;
+                    $isPendingReview = ($docStatus === 'pending' || $docStatus === 0 || $docStatus === '0');
+                @endphp
                 <div class="row">
                     <div class="col-md-4 mb-3">
                         <label class="small text-muted d-block">Last Updated</label>
@@ -38,12 +42,12 @@
                     </div>
                     <div class="col-md-4">
                         <label class="small text-muted d-block">Status</label>
-                        @if($document['status'] == 2)
+                        @if($docStatus === 'approved' || $docStatus === 2 || $docStatus === '2')
                             <span class="text-success small fw-bold"><i class="bi bi-check-circle-fill"></i> Approved</span>
-                        @elseif($document['status'] == 3)
+                        @elseif($docStatus === 'rejected' || $docStatus === 3 || $docStatus === '3')
                             <span class="text-danger small fw-bold"><i class="bi bi-x-circle-fill"></i> Rejected</span>
-                        @elseif($document['status'] == 1)
-                            <span class="text-danger small fw-bold"><i class="bi bi-x-circle-fill"></i> Public</span>
+                        @elseif($docStatus === 'draft')
+                            <span class="text-secondary small fw-bold"><i class="bi bi-lock-fill"></i> Draft</span>
                         @else
                             <span class="text-warning small fw-bold"><i class="bi bi-clock-fill"></i> Pending Review</span>
                         @endif
@@ -55,24 +59,17 @@
                 <div class="col-lg-12">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="fw-bold mb-3">Document Preview</h5>
-                        @if(auth()->user()->hasRole('admin') && 
-                            optional($document->user)->roles->contains('id', 4) && 
-                            $document->status == 0)
+                        @if((auth()->user()->hasRole('admin') || auth()->user()->hasRole('hr')) && 
+                            $isPendingReview)
 
                             <div class="d-flex gap-2">
-                                <form action="{{ route('documents.approve', $document->id) }}" method="POST">
-                                    @csrf
-                                    <button type="submit" class="btn btn-success px-4 rounded-pill">
-                                        <i class="bi bi-check-circle me-1"></i> Approve
-                                    </button>
-                                </form>
+                                <button onclick="changeStatus({{ $document->id }}, 'approved')" class="btn btn-success px-4 rounded-pill">
+                                    <i class="bi bi-check-circle me-1"></i> Approve
+                                </button>
 
-                                <form action="{{ route('documents.reject', $document->id) }}" method="POST">
-                                    @csrf
-                                    <button type="submit" class="btn btn-danger px-4 rounded-pill">
-                                        <i class="bi bi-x-circle me-1"></i> Reject
-                                    </button>
-                                </form>
+                                <button onclick="changeStatus({{ $document->id }}, 'rejected')" class="btn btn-danger px-4 rounded-pill">
+                                    <i class="bi bi-x-circle me-1"></i> Reject
+                                </button>
                             </div>
                         @endif
                     </div>
@@ -100,29 +97,48 @@
 
 <script>
 function changeStatus(docId, statusId) {
-    const action = statusId === 1 ? 'Approve' : 'Reject';
+    const action = statusId === 'approved' ? 'Approve' : 'Reject';
     if(!confirm(`Are you sure you want to ${action} this document?`)) return;
+
+    const payload = {
+        status: statusId
+    };
+    
+    console.log('Sending request to:', `/documents/${docId}/update-status`);
+    console.log('Payload:', payload);
+    console.log('CSRF Token:', '{{ csrf_token() }}');
 
     fetch(`/documents/${docId}/update-status`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRF-TOKEN': '{{ csrf_token() }}',
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
         },
-        body: JSON.stringify({ status: statusId })
+        body: JSON.stringify(payload)
     })
     .then(response => {
-        if (!response.ok) throw new Error('Status update failed');
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        console.log('Response ok:', response.ok);
+        
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.log('Error response text:', text);
+                throw new Error(`Status update failed: ${response.status} ${text}`);
+            });
+        }
         return response.json();
     })
     .then(data => {
+        console.log('Success response:', data);
         // Success: reload the page to show the updated status badge
         window.location.reload();
     })
     .catch(error => {
+        console.error('Full error details:', error);
         alert('Error: ' + error.message);
-        console.error('Error:', error);
     });
 }
 </script>

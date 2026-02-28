@@ -34,8 +34,8 @@ class DocumentController extends Controller
         $submitterName = $submitter->full_name ?? $submitter->name ?? 'An employee';
 
         $notification = Notification::create([
-            'title' => 'Document Pending Review',
-            'message' => $submitterName . ' submitted "' . $document->title . '" for approval.',
+            'title' => 'New Document Created',
+            'message' => $submitterName . ' created "' . $document->title . '".',
             'type' => 'document_review',
             'document_id' => $document->id,
         ]);
@@ -123,28 +123,35 @@ class DocumentController extends Controller
                 'file_type' => $request->type,
                 'uploaded_by' => $userId,
             ]);
-           $notification = \App\Models\Notification::create([
-            'document_id' => $document->id, // Fixed: This links the notification to the document
-            'title'       => 'New Document Created',
-            'message'     => 'The document "' . $document->title . '" has been uploaded and is pending review.',
-            'type'        => 'info'
-        ]);
 
-        // 3. Attach to the creator
-        $request->user()->notifications()->attach($notification->id, [
-            'is_read' => false,
-        ]);
+            $notification = \App\Models\Notification::create([
+                'document_id' => $document->id, // Fixed: This links the notification to the document
+                'title'       => 'New Document Created',
+                'message'     => 'The document "' . $document->title . '" has been uploaded.',
+                'type'        => 'info'
+            ]);
 
-        // 4. Attach to all ADMINS so they see it in their notification list
-       $admins = User::whereHas('roles', function($query) {
-            $query->where('role_id', 1); // This searches the user_roles table you showed me
-        })->get();
-        foreach ($admins as $admin) {
-            // Check to avoid double-attaching if the creator is also an admin
-            if ($admin->id !== $userId) {
-                $admin->notifications()->attach($notification->id, ['is_read' => false]);
+            // 3. Attach to the creator
+            $request->user()->notifications()->attach($notification->id, [
+                'is_read' => false,
+            ]);
+
+            // 4. Attach to other HR/Admin users only when the creator is HR/Admin.
+            // Employees submitting pending documents already generate a separate review notification
+            // (notifyHrAdminOfPendingDocument), so attaching this one too would cause duplicates.
+            if ($isHrOrAdmin) {
+                $admins = User::whereHas('roles', function($query) {
+                    $query->whereIn('name', ['admin', 'hr']);
+                })->get();
+
+                foreach ($admins as $admin) {
+                    // Avoid double-attaching if the creator is also in the list
+                    if ($admin->id !== $userId) {
+                        $admin->notifications()->attach($notification->id, ['is_read' => false]);
+                    }
+                }
             }
-        }
+
             // Bust categories cache so document counts update immediately
             Cache::forget('categories_list');
 

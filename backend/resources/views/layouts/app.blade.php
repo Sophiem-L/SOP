@@ -21,6 +21,23 @@
         .bookmark-icon:active { transform: scale(1.2); }
         /* Style for guest/login container */
         .guest-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; background-color: #f8f9fa; }
+        
+        /* Enhanced header styling */
+        .no-print {
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 1rem !important;
+        }
+        
+        /* Improved dropdown styling */
+        .dropdown-menu {
+            border: 1px solid #e9ecef !important;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        }
+        
+        /* Notification badge improvements */
+        .badge {
+            font-weight: 500;
+        }
     </style>
 </head>
 <body class="bg-light">

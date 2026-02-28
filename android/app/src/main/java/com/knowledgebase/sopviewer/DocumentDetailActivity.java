@@ -2,12 +2,10 @@ package com.knowledgebase.sopviewer;
 
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.graphics.pdf.PdfRenderer;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.ParcelFileDescriptor;
+import com.github.barteksc.pdfviewer.PDFView;
 import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
@@ -107,7 +105,7 @@ public class DocumentDetailActivity extends AppCompatActivity {
 
         LinearLayout pdfContainer = findViewById(R.id.pdfContainer);
         ProgressBar pdfLoadingBar = findViewById(R.id.pdfLoadingBar);
-        LinearLayout pdfPagesContainer = findViewById(R.id.pdfPagesContainer);
+        PDFView pdfView = findViewById(R.id.pdfView);
         TextView pdfErrorText = findViewById(R.id.pdfErrorText);
 
         LinearLayout docViewerContainer = findViewById(R.id.docViewerContainer);
@@ -151,7 +149,7 @@ public class DocumentDetailActivity extends AppCompatActivity {
                             return;
                         }
                         String bearerToken = "Bearer " + tokenTask.getResult().getToken();
-                        loadPdfInline(serveUrl, bearerToken, pdfPagesContainer, pdfLoadingBar, pdfErrorText);
+                        loadPdfInline(serveUrl, bearerToken, pdfView, pdfLoadingBar, pdfErrorText);
                     });
         }
     }
@@ -176,7 +174,7 @@ public class DocumentDetailActivity extends AppCompatActivity {
      * Android never receives correctly. JSON is plain text — artisan serve transfers
      * it without chunking issues — and Base64.decode() restores the original bytes.
      */
-    private void loadPdfInline(String url, String bearerToken, LinearLayout container,
+    private void loadPdfInline(String url, String bearerToken, PDFView pdfView,
             ProgressBar loadingBar, TextView errorView) {
         Log.d(TAG, "loadPdfInline URL: " + url);
         new Thread(() -> {
@@ -203,7 +201,7 @@ public class DocumentDetailActivity extends AppCompatActivity {
                 try (java.io.FileOutputStream fos = new java.io.FileOutputStream(cacheFile)) {
                     fos.write(pdfBytes);
                 }
-                renderPdfFromFile(cacheFile, container, loadingBar, errorView);
+                renderPdfFromFile(cacheFile, pdfView, loadingBar, errorView);
             } catch (Exception e) {
                 Log.e(TAG, "PDF load error: " + e.getMessage());
                 showError(loadingBar, errorView, "Load error: " + e.getMessage());
@@ -220,53 +218,22 @@ public class DocumentDetailActivity extends AppCompatActivity {
         });
     }
 
-    private void renderPdfFromFile(java.io.File file, LinearLayout container,
+    private void renderPdfFromFile(java.io.File file, PDFView pdfView,
             ProgressBar loadingBar, TextView errorView) {
-        try {
-            ParcelFileDescriptor pfd = ParcelFileDescriptor.open(
-                    file, ParcelFileDescriptor.MODE_READ_ONLY);
-            PdfRenderer renderer = new PdfRenderer(pfd);
-            int pageCount = renderer.getPageCount();
-            if (pageCount == 0) {
-                renderer.close();
-                pfd.close();
-                showError(loadingBar, errorView, "PDF has no pages");
-                return;
-            }
-            int screenWidth = getResources().getDisplayMetrics().widthPixels;
-            int padding = (int) (48 * getResources().getDisplayMetrics().density);
-            int renderWidth = screenWidth - padding;
-
-            for (int i = 0; i < pageCount; i++) {
-                PdfRenderer.Page page = renderer.openPage(i);
-                int renderHeight = (int) ((float) page.getHeight() / page.getWidth() * renderWidth);
-                Bitmap bitmap = Bitmap.createBitmap(renderWidth, renderHeight,
-                        Bitmap.Config.ARGB_8888);
-                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-                page.close();
-
-                final Bitmap finalBitmap = bitmap;
-                final boolean isLast = (i == pageCount - 1);
-                runOnUiThread(() -> {
-                    ImageView iv = new ImageView(DocumentDetailActivity.this);
-                    iv.setImageBitmap(finalBitmap);
-                    iv.setAdjustViewBounds(true);
-                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT);
-                    lp.setMargins(0, 0, 0, 8);
-                    iv.setLayoutParams(lp);
-                    container.addView(iv);
-                    if (isLast)
-                        loadingBar.setVisibility(View.GONE);
-                });
-            }
-            renderer.close();
-            pfd.close();
-        } catch (Exception e) {
-            Log.e(TAG, "PdfRenderer error: " + e.getMessage());
-            showError(loadingBar, errorView, "Render error: " + e.getMessage());
-        }
+        runOnUiThread(() ->
+            pdfView.fromFile(file)
+                .defaultPage(0)
+                .enableSwipe(true)
+                .swipeHorizontal(false)
+                .enableDoubletap(true)
+                .enableAnnotationRendering(false)
+                .onLoad(nbPages -> loadingBar.setVisibility(View.GONE))
+                .onError(t -> {
+                    Log.e(TAG, "PDFView error: " + t.getMessage());
+                    showError(loadingBar, errorView, "Render error: " + t.getMessage());
+                })
+                .load()
+        );
     }
 
     /** Colours and shows the status badge based on document status. */

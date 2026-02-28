@@ -4,11 +4,17 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Models\Document;
 use App\Models\Notification;
 use App\Models\User;
 
 class NotificationController extends Controller
 {
+    private function isHrOrAdmin($user): bool
+    {
+        return $user && $user->roles()->whereIn('name', ['admin', 'hr'])->exists();
+    }
+
     /**
      * Get the authenticated user's notifications.
      */
@@ -23,10 +29,16 @@ class NotificationController extends Controller
             return response()->json(['message' => 'User notifications relation not found'], 500);
         }
 
-        $notifications = auth()->user()->notifications()
-    ->with(['document.user.roles']) // Deep eager loading
-    ->latest()
-    ->get();
+        $query = $user->notifications()
+            ->with(['document.user.roles'])
+            ->latest();
+
+        // Android: employees should only be alerted when HR/Admin approves or rejects.
+        if (!$this->isHrOrAdmin($user)) {
+            $query->whereIn('type', ['document_approved', 'document_rejected']);
+        }
+
+        $notifications = $query->get();
 
         return response()->json($notifications);
     }
@@ -62,12 +74,20 @@ class NotificationController extends Controller
         }
 
         $userId = $user->id;
+        $isHrOrAdmin = $this->isHrOrAdmin($user);
 
-        return response()->stream(function () use ($userId) {
-            $count = DB::table('user_notifications')
-                ->where('user_id', $userId)
-                ->where('is_read', false)
-                ->count();
+        return response()->stream(function () use ($userId, $isHrOrAdmin) {
+            $countQuery = DB::table('user_notifications')
+                ->where('user_notifications.user_id', $userId)
+                ->where('user_notifications.is_read', false);
+
+            // Android employee badge should only count approve/reject notifications.
+            if (!$isHrOrAdmin) {
+                $countQuery->join('notifications', 'user_notifications.notification_id', '=', 'notifications.id')
+                    ->whereIn('notifications.type', ['document_approved', 'document_rejected']);
+            }
+
+            $count = $countQuery->count();
 
             // Tell client to reconnect after 5 seconds
             echo "retry: 5000\n";
@@ -129,15 +149,58 @@ class NotificationController extends Controller
         return response()->json(['message' => 'All notifications marked as read']);
     }
     public function updateStatus(Request $request, $documentId)
-{
-    $document = \App\Models\Document::findOrFail($documentId);
-    
-    // 1 = Approved, 3 = Rejected
-    $document->status = $request->status; 
-    $document->save();
+    {
+        try {
+            $document = Document::findOrFail($documentId);
 
-    return response()->json(['message' => 'Status updated successfully']);
-}
+            $incomingStatus = $request->input('status');
+
+            // Database uses enum strings: 'draft', 'pending', 'approved', 'rejected'.
+            // Frontend may send legacy numeric values (2=approved, 3=rejected).
+            $mappedStatus = $incomingStatus;
+            if (is_numeric($incomingStatus)) {
+                $incomingInt = (int) $incomingStatus;
+                $mappedStatus = match ($incomingInt) {
+                    2 => 'approved',
+                    3 => 'rejected',
+                    default => $incomingStatus,
+                };
+            }
+
+            $request->merge(['status' => $mappedStatus]);
+            $request->validate([
+                'status' => 'required|string|in:approved,rejected'
+            ]);
+
+            $document->status = $mappedStatus;
+            $document->save();
+
+            // Notify document creator so mobile (Android) can alert on approve/reject.
+            $creator = User::find($document->created_by);
+            if ($creator) {
+                $type = $mappedStatus === 'approved' ? 'document_approved' : 'document_rejected';
+                $title = $mappedStatus === 'approved' ? 'Document Approved' : 'Document Rejected';
+                $message = 'Your document "' . $document->title . '" has been ' . $mappedStatus . '.';
+
+                $notification = Notification::create([
+                    'title' => $title,
+                    'message' => $message,
+                    'type' => $type,
+                    'document_id' => $document->id,
+                ]);
+
+                $notification->users()->attach([$creator->id]);
+            }
+
+            return response()->json(['message' => 'Status updated successfully']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['message' => 'Invalid status value'], 422);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['message' => 'Document not found'], 404);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to update status: ' . $e->getMessage()], 500);
+        }
+    }
 
 public function getNotificationsData()
     {
