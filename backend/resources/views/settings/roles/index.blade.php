@@ -31,16 +31,16 @@
                                 <div class="bg-primary bg-opacity-10 text-primary rounded-3 p-2 me-3">
                                     <i class="bi bi-shield-check fs-5"></i>
                                 </div>
-                                <span class="fw-bold">{{ $role->name }}</span>
+                                <span class="fw-bold">{{ $role['name'] }}</span>
                             </div>
                         </td>
                         <td class="text-center">
                             <span class="badge rounded-pill bg-light text-dark border px-3">
-                                {{ $role->users_count }} Users
+                                {{ $role['users_count'] }} Users
                             </span>
                         </td>
                         <td>
-                            <span class="text-muted small">Access to SOPs, Bookmarks</span>
+                            <span class="text-muted small">{{ implode(', ', $role['action']) }}</span>
                         </td>
                         <td class="pe-4 text-end">
                             <button class="btn btn-sm btn-link text-decoration-none text-primary fw-bold p-0 me-3">Edit</button>
