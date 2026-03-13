@@ -58,6 +58,108 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- Suggestion Banner (shown when opened from a suggestion notification) -->
+    <LinearLayout
+        android:id="@+id/suggestionBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFF8E1"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="12dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/header">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:src="@drawable/ic_pencil"
+                app:tint="#D97706" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="HR/Admin Suggestion"
+                android:textColor="#D97706"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnEditDocument"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="Edit Document"
+                android:textAllCaps="false"
+                android:textSize="12sp"
+                app:backgroundTint="@color/brand_blue"
+                app:cornerRadius="8dp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvSuggestionMessage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#78350F"
+            android:textSize="13sp" />
+
+        <!-- Attachment row: visible only when suggestion has a file -->
+        <LinearLayout
+            android:id="@+id/layoutSuggestionAttachment"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/edit_text_bg"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="10dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_pdf"
+                app:tint="@color/brand_blue" />
+
+            <TextView
+                android:id="@+id/tvAttachmentFileName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Attachment"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOpenAttachment"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="Open"
+                android:textAllCaps="false"
+                android:textSize="12sp"
+                app:backgroundTint="@color/brand_blue"
+                app:cornerRadius="8dp"
+                app:icon="@drawable/ic_download"
+                app:iconSize="14dp"
+                app:iconGravity="start"
+                app:iconPadding="4dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
     <!-- Online Mode Bar -->
     <LinearLayout
         android:id="@+id/onlineModeBar"
@@ -67,7 +169,7 @@
         android:gravity="center"
         android:orientation="horizontal"
         android:padding="8dp"
-        app:layout_constraintTop_toBottomOf="@id/header">
+        app:layout_constraintTop_toBottomOf="@id/suggestionBanner">
 
         <ImageView
             android:layout_width="16dp"
@@ -236,10 +338,12 @@
                 android:textSize="14sp" />
 
             <!-- Inline PDF Viewer (shown for PDF files) -->
+            <!-- Fixed height so PdfRendererView (a RecyclerView internally) can
+                 measure itself correctly inside the parent NestedScrollView. -->
             <LinearLayout
                 android:id="@+id/pdfContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="700dp"
                 android:layout_marginTop="24dp"
                 android:orientation="vertical"
                 android:visibility="gone">
@@ -262,10 +366,11 @@
                     android:layout_marginBottom="16dp"
                     android:visibility="visible" />
 
-                <com.github.barteksc.pdfviewer.PDFView
-                    android:id="@+id/pdfView"
+                <com.rajat.pdfviewer.PdfRendererView
+                    android:id="@+id/pdfRendererView"
                     android:layout_width="match_parent"
-                    android:layout_height="500dp" />
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
 
                 <!-- Shown when PDF cannot be rendered -->
                 <TextView

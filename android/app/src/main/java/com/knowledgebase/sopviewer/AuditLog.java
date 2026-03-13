@@ -1,44 +1,40 @@
 package com.knowledgebase.sopviewer;
 
+import com.google.gson.annotations.SerializedName;
+
 public class AuditLog {
+
+    @SerializedName("id")
+    private int id;
+
+    @SerializedName("action")
+    private String action;
+
+    @SerializedName("created_at")
+    private String createdAt;
+
+    @SerializedName("user_name")
     private String userName;
+
+    @SerializedName("user_role")
     private String userRole;
-    private String timestamp;
-    private String actionTitle;
-    private String attachmentName;
-    private int avatarRes;
 
-    public AuditLog(String userName, String userRole, String timestamp, String actionTitle, String attachmentName,
-            int avatarRes) {
-        this.userName = userName;
-        this.userRole = userRole;
-        this.timestamp = timestamp;
-        this.actionTitle = actionTitle;
-        this.attachmentName = attachmentName;
-        this.avatarRes = avatarRes;
-    }
+    @SerializedName("document_title")
+    private String documentTitle;
 
-    public String getUserName() {
-        return userName;
-    }
+    public AuditLog() {}
 
-    public String getUserRole() {
-        return userRole;
-    }
+    public int getId() { return id; }
+    public String getAction() { return action; }
+    public String getCreatedAt() { return createdAt; }
+    public String getUserName() { return userName; }
+    public String getUserRole() { return userRole; }
+    public String getDocumentTitle() { return documentTitle; }
 
-    public String getTimestamp() {
-        return timestamp;
-    }
-
-    public String getActionTitle() {
-        return actionTitle;
-    }
-
-    public String getAttachmentName() {
-        return attachmentName;
-    }
-
-    public int getAvatarRes() {
-        return avatarRes;
+    /** Human-readable action label shown in the UI. */
+    public String getActionLabel() {
+        if ("create".equals(action)) return "Created document";
+        if ("update".equals(action)) return "Updated document";
+        return action != null ? action : "";
     }
 }

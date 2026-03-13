@@ -56,8 +56,8 @@ public class NotificationsActivity extends AppCompatActivity {
         tabAuditLogs.setOnClickListener(v -> setTabActive(false));
 
         setTabActive(true);
-        loadMockAuditLogs();
         loadNotifications();
+        loadAuditLogs();
 
         findViewById(R.id.btnSettings).setOnClickListener(v ->
                 SettingsMenuHelper.showSettingsMenu(NotificationsActivity.this, v));
@@ -168,17 +168,37 @@ public class NotificationsActivity extends AppCompatActivity {
                 });
     }
 
-    private void loadMockAuditLogs() {
-        List<AuditLog> logs = new ArrayList<>();
-        logs.add(new AuditLog("Alice Johnson", "Project Manager", "2023-10-26 14:30",
-                "Weekly Standup Summary", "Project Alpha Brief.docx", R.drawable.ic_profile));
-        logs.add(new AuditLog("Bob Smith", "Software Engineer", "2023-10-25 10:00",
-                "Debugging Session Notes", "Bug Report #123.pdf", R.drawable.ic_profile));
-        logs.add(new AuditLog("Charlie Davis", "Compliance Officer", "2023-10-24 16:15",
-                "Policy Update Review", "Security_SOP_v2.pdf", R.drawable.ic_profile));
+    private void loadAuditLogs() {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
 
+        // Initialize adapter with empty list while loading
+        List<AuditLog> logs = new ArrayList<>();
         auditLogAdapter = new AuditLogAdapter(logs);
         recyclerAuditLogs.setAdapter(auditLogAdapter);
+
+        user.getIdToken(false).addOnCompleteListener(task -> {
+            if (!task.isSuccessful()) return;
+            String token = "Bearer " + task.getResult().getToken();
+
+            RetrofitClient.getApiService().getAuditLogs(token)
+                    .enqueue(new Callback<List<AuditLog>>() {
+                        @Override
+                        public void onResponse(Call<List<AuditLog>> call,
+                                               Response<List<AuditLog>> response) {
+                            if (response.isSuccessful() && response.body() != null) {
+                                logs.clear();
+                                logs.addAll(response.body());
+                                auditLogAdapter.notifyDataSetChanged();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Call<List<AuditLog>> call, Throwable t) {
+                            android.util.Log.e("AuditLogs", "Load failed: " + t.getMessage());
+                        }
+                    });
+        });
     }
 
     @Override

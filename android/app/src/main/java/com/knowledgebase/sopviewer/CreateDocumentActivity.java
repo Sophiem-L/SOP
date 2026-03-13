@@ -17,6 +17,7 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.Toast;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
+import com.google.android.material.switchmaterial.SwitchMaterial;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.Spinner;
@@ -43,6 +44,10 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 public class CreateDocumentActivity extends AppCompatActivity {
+
+    private LinearLayout uploadLoadingOverlay;
+    private Button btnPublish, btnSaveDraft;
+    private SwitchMaterial switchOfflineAvailable;
 
     // PDF file details
     private LinearLayout layoutFileDetails;
@@ -170,10 +175,13 @@ public class CreateDocumentActivity extends AppCompatActivity {
 
         fetchCategories();
 
-        Button btnPublish = findViewById(R.id.btnPublish);
+        uploadLoadingOverlay = findViewById(R.id.uploadLoadingOverlay);
+        switchOfflineAvailable = findViewById(R.id.switchOfflineAvailable);
+
+        btnPublish = findViewById(R.id.btnPublish);
         btnPublish.setOnClickListener(v -> submitDocument("pending"));
 
-        Button btnSaveDraft = findViewById(R.id.btnSaveDraft);
+        btnSaveDraft = findViewById(R.id.btnSaveDraft);
         btnSaveDraft.setOnClickListener(v -> submitDocument("draft"));
 
         Button btnPreview = findViewById(R.id.btnPreview);
@@ -224,9 +232,15 @@ public class CreateDocumentActivity extends AppCompatActivity {
     }
 
     private void submitDocument(String docStatus) {
+        // Disable immediately to prevent double-tap submitting twice
+        btnPublish.setEnabled(false);
+        btnSaveDraft.setEnabled(false);
+
         String title = editTitle.getText().toString().trim();
         if (title.isEmpty()) {
             editTitle.setError("Title is required");
+            btnPublish.setEnabled(true);
+            btnSaveDraft.setEnabled(true);
             return;
         }
 
@@ -236,6 +250,8 @@ public class CreateDocumentActivity extends AppCompatActivity {
             categoryName = editNewCategory.getText().toString().trim();
             if (categoryName.isEmpty()) {
                 editNewCategory.setError("Category name is required");
+                btnPublish.setEnabled(true);
+                btnSaveDraft.setEnabled(true);
                 return;
             }
         } else {
@@ -250,6 +266,8 @@ public class CreateDocumentActivity extends AppCompatActivity {
             Toast.makeText(this,
                     isPdfMode ? "Please select a PDF file" : "Please select a DOC file",
                     Toast.LENGTH_SHORT).show();
+            btnPublish.setEnabled(true);
+            btnSaveDraft.setEnabled(true);
             return;
         }
 
@@ -259,6 +277,8 @@ public class CreateDocumentActivity extends AppCompatActivity {
             fileBytes = getBytes(inputStream);
         } catch (IOException e) {
             e.printStackTrace();
+            btnPublish.setEnabled(true);
+            btnSaveDraft.setEnabled(true);
             return;
         }
 
@@ -303,13 +323,53 @@ public class CreateDocumentActivity extends AppCompatActivity {
             user.getIdToken(false).addOnCompleteListener(task -> {
                 if (task.isSuccessful()) {
                     String idToken = "Bearer " + task.getResult().getToken();
+
+                    // Show loading overlay (buttons already disabled at top of submitDocument)
+                    uploadLoadingOverlay.setVisibility(View.VISIBLE);
+
+                    final boolean offlineToggleOn =
+                            switchOfflineAvailable != null && switchOfflineAvailable.isChecked();
+                    // Read the global "Auto-download new SOPs" setting
+                    final boolean autoDownloadEnabled = getSharedPreferences(
+                            "offline_settings", MODE_PRIVATE)
+                            .getBoolean("auto_download_sops", false);
+                    final boolean shouldDownload = offlineToggleOn || autoDownloadEnabled;
+                    final String finalTitle2 = title;
+                    final String finalType   = type;
+
                     RetrofitClient.getApiService()
                             .createDocument(idToken, titlePart, typePart, categoryIdPart,
                                     categoryNamePart, descriptionPart, statusPart, filePart)
                             .enqueue(new Callback<ResponseBody>() {
                                 @Override
                                 public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                                    uploadLoadingOverlay.setVisibility(View.GONE);
+                                    btnPublish.setEnabled(true);
+                                    btnSaveDraft.setEnabled(true);
                                     if (response.isSuccessful()) {
+                                        // Download if offline toggle is ON or auto-download is enabled
+                                        if (shouldDownload && response.body() != null) {
+                                            try {
+                                                String json = response.body().string();
+                                                org.json.JSONObject obj = new org.json.JSONObject(json);
+                                                org.json.JSONObject doc = obj.optJSONObject("document");
+                                                if (doc != null) {
+                                                    org.json.JSONArray versions = doc.optJSONArray("versions");
+                                                    if (versions != null && versions.length() > 0) {
+                                                        String fileUrl = versions.getJSONObject(0)
+                                                                .optString("file_url", "");
+                                                        if (!fileUrl.isEmpty()) {
+                                                            DownloadHelper.download(
+                                                                    CreateDocumentActivity.this,
+                                                                    fileUrl,
+                                                                    finalTitle2,
+                                                                    finalType,
+                                                                    description);
+                                                        }
+                                                    }
+                                                }
+                                            } catch (Exception ignored) {}
+                                        }
                                         String msg = "draft".equals(docStatus) ? "Draft saved" : "Document published successfully";
                                         Toast.makeText(CreateDocumentActivity.this, msg, Toast.LENGTH_SHORT).show();
                                         setResult(RESULT_OK);
@@ -322,6 +382,9 @@ public class CreateDocumentActivity extends AppCompatActivity {
 
                                 @Override
                                 public void onFailure(Call<ResponseBody> call, Throwable t) {
+                                    uploadLoadingOverlay.setVisibility(View.GONE);
+                                    btnPublish.setEnabled(true);
+                                    btnSaveDraft.setEnabled(true);
                                     Toast.makeText(CreateDocumentActivity.this,
                                             "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
                                 }

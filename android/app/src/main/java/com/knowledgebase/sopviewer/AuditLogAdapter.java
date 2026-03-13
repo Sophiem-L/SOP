@@ -27,12 +27,12 @@ public class AuditLogAdapter extends RecyclerView.Adapter<AuditLogAdapter.ViewHo
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         AuditLog log = auditLogs.get(position);
-        holder.tvUserName.setText(log.getUserName());
-        holder.tvUserRole.setText(log.getUserRole());
-        holder.tvTimestamp.setText(log.getTimestamp());
-        holder.tvActionTitle.setText(log.getActionTitle());
-        holder.tvAttachmentName.setText(log.getAttachmentName());
-        holder.userAvatar.setImageResource(log.getAvatarRes());
+        holder.tvUserName.setText(log.getUserName() != null ? log.getUserName() : "Unknown");
+        holder.tvUserRole.setText(log.getUserRole() != null ? log.getUserRole() : "");
+        holder.tvTimestamp.setText(log.getCreatedAt() != null ? log.getCreatedAt() : "");
+        holder.tvActionTitle.setText(log.getActionLabel());
+        holder.tvAttachmentName.setText(log.getDocumentTitle() != null ? log.getDocumentTitle() : "");
+        holder.userAvatar.setImageResource(R.drawable.ic_profile);
     }
 
     @Override

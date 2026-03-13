@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/edit_text_bg"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="12dp"
+    android:layout_marginBottom="8dp">
+
+    <!-- File icon / loading spinner -->
+    <FrameLayout
+        android:layout_width="36dp"
+        android:layout_height="36dp">
+
+        <ImageView
+            android:id="@+id/iconFile"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:src="@drawable/ic_download_border"
+            app:tint="@color/brand_blue" />
+
+        <ProgressBar
+            android:id="@+id/iconLoading"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:indeterminateTint="@color/brand_blue"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+    <!-- Title + size -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/docTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/docSize"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/gray_text"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Offline toggle -->
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/switchOffline"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:checked="true"
+        app:thumbTint="@color/white"
+        app:trackTint="@color/switch_track_tint" />
+
+    <!-- Delete button -->
+    <ImageView
+        android:id="@+id/btnDelete"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginStart="4dp"
+        android:padding="8dp"
+        android:src="@drawable/ic_close"
+        app:tint="@color/gray_text" />
+
+</LinearLayout>

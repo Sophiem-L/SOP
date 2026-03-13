@@ -46,6 +46,9 @@ Route::middleware(['firebase.auth'])->group(function () {
     Route::get('/documents/{id}/file', [DocumentController::class, 'serveFile']);
     Route::post('/documents/{id}/favorite', [DocumentController::class, 'toggleFavorite']);
     Route::post('/documents/{id}/status', [DocumentController::class, 'updateStatus']);
+    Route::post('/documents/{id}/suggestions', [DocumentController::class, 'storeSuggestion']);
+    Route::put('/documents/{id}', [DocumentController::class, 'update']);
+    Route::get('/audit-logs', [DocumentController::class, 'auditLogs']);
     Route::post('/user/update', [AuthController::class, 'updateProfile']);
     Route::post('/user/update-password', [AuthController::class, 'updatePassword']);
     Route::post('/user/upload-avatar', [AuthController::class, 'uploadAvatar']);

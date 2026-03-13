@@ -3,6 +3,7 @@ package com.knowledgebase.sopviewer;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Environment;
 import android.widget.Toast;
@@ -39,6 +40,13 @@ public class DownloadHelper {
 
         try {
             DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
+
+            // Skip if the same URL is already downloaded or in progress
+            if (alreadyDownloaded(dm, url)) {
+                Toast.makeText(context, "Already saved for offline", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
             request.setTitle(docTitle != null && !docTitle.isEmpty() ? docTitle : fileName);
             request.setDescription("Downloading document…");
@@ -69,6 +77,33 @@ public class DownloadHelper {
 
     // -------------------------------------------------------------------------
 
+    /**
+     * Returns true if DownloadManager already has a successful or in-progress
+     * entry whose URI matches the given URL, preventing duplicate downloads.
+     */
+    private static boolean alreadyDownloaded(DownloadManager dm, String url) {
+        Cursor cursor = dm.query(new DownloadManager.Query());
+        if (cursor == null) return false;
+        try {
+            int colUri    = cursor.getColumnIndex(DownloadManager.COLUMN_URI);
+            int colStatus = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
+            if (colUri < 0 || colStatus < 0) return false;
+            while (cursor.moveToNext()) {
+                String existingUri = cursor.getString(colUri);
+                int status         = cursor.getInt(colStatus);
+                if (url.equals(existingUri)
+                        && (status == DownloadManager.STATUS_SUCCESSFUL
+                                || status == DownloadManager.STATUS_RUNNING
+                                || status == DownloadManager.STATUS_PENDING)) {
+                    return true;
+                }
+            }
+        } finally {
+            cursor.close();
+        }
+        return false;
+    }
+
     private static void saveMetadata(Context context, long downloadId,
             String title, String fileType, String description) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -77,6 +112,9 @@ public class DownloadHelper {
             json.put("title", title != null ? title : "");
             json.put("fileType", fileType != null ? fileType : "");
             json.put("description", description != null ? description : "");
+            // Mark as offline so OfflineAccessActivity can display it
+            json.put("offline", true);
+            json.put("offlineEnabled", true);
             prefs.edit().putString(String.valueOf(downloadId), json.toString()).apply();
         } catch (org.json.JSONException ignored) {
         }

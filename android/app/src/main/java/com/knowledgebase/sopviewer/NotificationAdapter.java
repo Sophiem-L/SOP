@@ -39,9 +39,14 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
         } else {
             holder.tvBadge.setVisibility(View.VISIBLE);
             holder.tvBadge.setText(status);
-            int color = "Review".equals(status)
-                    ? ContextCompat.getColor(holder.itemView.getContext(), R.color.brand_pink)
-                    : ContextCompat.getColor(holder.itemView.getContext(), R.color.brand_blue);
+            int color;
+            if ("Suggestion".equals(status)) {
+                color = ContextCompat.getColor(holder.itemView.getContext(), R.color.brand_orange);
+            } else if ("Review".equals(status)) {
+                color = ContextCompat.getColor(holder.itemView.getContext(), R.color.brand_pink);
+            } else {
+                color = ContextCompat.getColor(holder.itemView.getContext(), R.color.brand_blue);
+            }
             holder.tvBadge.getBackground().setTint(color);
         }
 
@@ -59,6 +64,12 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
                 intent.putExtra("file_type", "");
                 intent.putExtra("category", "");
                 intent.putExtra("version", "");
+                intent.putExtra("notification_type", notification.getType());
+                if ("suggestion".equals(notification.getType())) {
+                    intent.putExtra("suggestion_message", notification.getMessage());
+                    intent.putExtra("open_suggestion", true);
+                    intent.putExtra("suggestion_attachment_url", notification.getAttachmentUrl());
+                }
                 ctx.startActivity(intent);
             });
         } else {

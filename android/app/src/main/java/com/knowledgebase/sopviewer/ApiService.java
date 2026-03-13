@@ -9,6 +9,7 @@ import retrofit2.http.Header;
 import retrofit2.http.Headers;
 import retrofit2.http.Multipart;
 import retrofit2.http.POST;
+import retrofit2.http.PUT;
 import retrofit2.http.Part;
 import retrofit2.http.Path;
 import okhttp3.MultipartBody;
@@ -101,4 +102,27 @@ public interface ApiService {
         /** Mark all notifications as read */
         @POST("api/notifications/read-all")
         Call<ResponseBody> markAllNotificationsRead(@Header("Authorization") String token);
+
+        /** HR/Admin: submit a suggestion for a document (with optional file attachment) */
+        @Multipart
+        @POST("api/documents/{id}/suggestions")
+        Call<ResponseBody> submitSuggestion(
+                        @Path("id") int docId,
+                        @Header("Authorization") String token,
+                        @Part("summary") RequestBody summary,
+                        @Part("comments") RequestBody comments,
+                        @Part MultipartBody.Part attachment);
+
+        /** Document creator: update title/description */
+        @FormUrlEncoded
+        @PUT("api/documents/{id}")
+        Call<ResponseBody> updateDocument(
+                        @Path("id") int docId,
+                        @Header("Authorization") String token,
+                        @Field("title") String title,
+                        @Field("description") String description);
+
+        /** Get all audit log entries (create/update actions across all users) */
+        @GET("api/audit-logs")
+        Call<List<AuditLog>> getAuditLogs(@Header("Authorization") String token);
 }

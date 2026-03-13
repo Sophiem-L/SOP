@@ -643,7 +643,7 @@
                             android:layout_height="wrap_content"
                             android:checked="true"
                             app:thumbTint="@color/white"
-                            app:trackTint="@color/brand_blue" />
+                            app:trackTint="@color/switch_track_tint" />
                     </LinearLayout>
 
                     <LinearLayout
@@ -700,7 +700,7 @@
                             android:layout_height="wrap_content"
                             android:checked="true"
                             app:thumbTint="@color/white"
-                            app:trackTint="@color/brand_blue" />
+                            app:trackTint="@color/switch_track_tint" />
                     </LinearLayout>
 
                     <!-- Required Approvals -->
@@ -980,8 +980,11 @@
                             android:textColor="@color/black" />
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchOfflineAvailable"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
+                            android:layout_height="wrap_content"
+                            app:thumbTint="@color/white"
+                            app:trackTint="@color/switch_track_tint" />
                     </LinearLayout>
 
                     <TextView
@@ -1098,6 +1101,34 @@
             app:backgroundTint="@color/brand_blue"
             app:cornerRadius="10dp"
             app:elevation="0dp" />
+    </LinearLayout>
+
+    <!-- Upload loading overlay — shown while the document is being uploaded -->
+    <LinearLayout
+        android:id="@+id/uploadLoadingOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#CC000000"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ProgressBar
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:indeterminateTint="@color/white" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Uploading document…"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

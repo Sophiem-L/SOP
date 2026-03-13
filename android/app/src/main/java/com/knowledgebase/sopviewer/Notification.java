@@ -19,7 +19,8 @@ public class Notification {
     private String title;
     private String message;
     private String type;
-    private Integer document_id;   // nullable
+    private Integer document_id;    // nullable
+    private String attachment_url;  // nullable — set when suggestion includes a file
     private String created_at;
     private Pivot pivot;
 
@@ -27,13 +28,14 @@ public class Notification {
     public Notification() {}
 
     // ── Getters ───────────────────────────────────────────────────────────
-    public int getId()            { return id; }
-    public String getTitle()      { return title != null ? title : ""; }
-    public String getMessage()    { return message != null ? message : ""; }
-    public String getType()       { return type != null ? type : "info"; }
-    public Integer getDocumentId(){ return document_id; }
-    public String getCreatedAt()  { return created_at != null ? created_at : ""; }
-    public boolean isRead()       { return pivot != null && pivot.is_read; }
+    public int getId()              { return id; }
+    public String getTitle()        { return title != null ? title : ""; }
+    public String getMessage()      { return message != null ? message : ""; }
+    public String getType()         { return type != null ? type : "info"; }
+    public Integer getDocumentId()  { return document_id; }
+    public String getAttachmentUrl(){ return attachment_url != null ? attachment_url : ""; }
+    public String getCreatedAt()    { return created_at != null ? created_at : ""; }
+    public boolean isRead()         { return pivot != null && pivot.is_read; }
 
     // ── Adapter-facing helpers ─────────────────────────────────────────────
     /** Content text shown in the notification card body. */
@@ -47,8 +49,9 @@ public class Notification {
         return "";
     }
 
-    /** Badge label: "New" for unread document-review alerts, blank otherwise. */
+    /** Badge label shown on notification cards. */
     public String getStatus() {
+        if (!isRead() && "suggestion".equals(type)) return "Suggestion";
         if (!isRead() && "document_review".equals(type)) return "Review";
         if (!isRead()) return "New";
         return "";

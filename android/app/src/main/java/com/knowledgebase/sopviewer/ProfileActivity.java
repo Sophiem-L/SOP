@@ -33,6 +33,7 @@ public class ProfileActivity extends AppCompatActivity {
     private View btnEditAvatar;
     private FirebaseAuth mAuth;
     private BottomNavigationView bottomNav;
+    private boolean isUploadingAvatar = false;
 
     // Returns from EditProfileActivity
     private final ActivityResultLauncher<Intent> editProfileLauncher = registerForActivityResult(
@@ -141,6 +142,13 @@ public class ProfileActivity extends AppCompatActivity {
             userName.setText(currentUser.getDisplayName() != null ? currentUser.getDisplayName() : "");
             userEmail.setText(currentUser.getEmail());
         }
+        // Show cached avatar immediately — no flicker while waiting for API
+        String cachedUrl = getSharedPreferences("profile_prefs", MODE_PRIVATE)
+                .getString("photo_url", null);
+        if (cachedUrl != null && !cachedUrl.isEmpty()) {
+            Glide.with(this).load(cachedUrl).circleCrop()
+                    .error(R.drawable.ic_profile).into(imgAvatar);
+        }
     }
 
     private void loadUserDataFromBackend() {
@@ -185,16 +193,16 @@ public class ProfileActivity extends AppCompatActivity {
                 userRoleBadge.setText("");
         }
 
-        // Load saved avatar from backend
+        // Load saved avatar from backend — skip if an upload is in progress
         String photoUrl = user.getProfilePhotoUrl();
-        if (photoUrl != null && !photoUrl.isEmpty()) {
-            String resolved = photoUrl
-                    .replace("http://localhost:8000/", "http://10.0.2.2:8000/")
-                    .replace("http://127.0.0.1:8000/", "http://10.0.2.2:8000/");
+        if (photoUrl != null && !photoUrl.isEmpty() && !isUploadingAvatar) {
+            String resolved = DownloadHelper.resolveUrl(photoUrl);
+            // Cache locally so next launch shows it instantly
+            getSharedPreferences("profile_prefs", MODE_PRIVATE)
+                    .edit().putString("photo_url", resolved).apply();
             Glide.with(this)
                     .load(resolved)
                     .circleCrop()
-                    .placeholder(R.drawable.ic_profile)
                     .error(R.drawable.ic_profile)
                     .into(imgAvatar);
         }
@@ -237,6 +245,8 @@ public class ProfileActivity extends AppCompatActivity {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) return;
 
+        isUploadingAvatar = true;
+
         currentUser.getIdToken(false).addOnCompleteListener(task -> {
             if (!task.isSuccessful()) {
                 Toast.makeText(this, "Authentication failed", Toast.LENGTH_SHORT).show();
@@ -266,21 +276,22 @@ public class ProfileActivity extends AppCompatActivity {
                             .enqueue(new Callback<ResponseBody>() {
                                 @Override
                                 public void onResponse(Call<ResponseBody> call, Response<ResponseBody> resp) {
+                                    isUploadingAvatar = false;
                                     if (resp.isSuccessful() && resp.body() != null) {
                                         try {
                                             String json = resp.body().string();
                                             org.json.JSONObject obj = new org.json.JSONObject(json);
                                             String photoUrl = obj.optString("profile_photo_url", "");
                                             if (!photoUrl.isEmpty()) {
-                                                photoUrl = photoUrl
-                                                        .replace("http://localhost:8000/", "http://10.0.2.2:8000/")
-                                                        .replace("http://127.0.0.1:8000/", "http://10.0.2.2:8000/");
-                                                final String finalUrl = photoUrl;
+                                                final String finalUrl = DownloadHelper.resolveUrl(photoUrl);
+                                                // Persist so next launch shows instantly
+                                                getSharedPreferences("profile_prefs", MODE_PRIVATE)
+                                                        .edit().putString("photo_url", finalUrl).apply();
                                                 runOnUiThread(() ->
                                                         Glide.with(ProfileActivity.this)
                                                                 .load(finalUrl)
                                                                 .circleCrop()
-                                                                .placeholder(R.drawable.ic_profile)
+                                                                .error(R.drawable.ic_profile)
                                                                 .into(imgAvatar));
                                             }
                                         } catch (Exception ignored) {}
@@ -294,6 +305,7 @@ public class ProfileActivity extends AppCompatActivity {
 
                                 @Override
                                 public void onFailure(Call<ResponseBody> call, Throwable t) {
+                                    isUploadingAvatar = false;
                                     runOnUiThread(() -> Toast.makeText(ProfileActivity.this,
                                             "Upload error: " + t.getMessage(), Toast.LENGTH_LONG).show());
                                 }

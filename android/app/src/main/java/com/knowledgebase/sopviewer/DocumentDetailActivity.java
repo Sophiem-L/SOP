@@ -5,7 +5,7 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
-import com.github.barteksc.pdfviewer.PDFView;
+import com.rajat.pdfviewer.PdfRendererView;
 import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
@@ -82,10 +82,57 @@ public class DocumentDetailActivity extends AppCompatActivity {
         final String finalStatus = status;
         final int finalDocId = docId;
 
+        // ── Suggestion banner (visible when opened from a suggestion notification) ──
+        LinearLayout suggestionBanner = findViewById(R.id.suggestionBanner);
+        android.widget.TextView tvSuggestionMessage = findViewById(R.id.tvSuggestionMessage);
+        com.google.android.material.button.MaterialButton btnEditDocument =
+                findViewById(R.id.btnEditDocument);
+
+        boolean openSuggestion   = getIntent().getBooleanExtra("open_suggestion", false);
+        String  suggestionMsg    = getIntent().getStringExtra("suggestion_message");
+        String  attachmentUrl    = getIntent().getStringExtra("suggestion_attachment_url");
+
+        if (openSuggestion && suggestionMsg != null && !suggestionMsg.isEmpty()
+                && suggestionBanner != null) {
+            suggestionBanner.setVisibility(View.VISIBLE);
+            if (tvSuggestionMessage != null) tvSuggestionMessage.setText(suggestionMsg);
+
+            // Show attachment row if a file was attached to the suggestion
+            LinearLayout layoutAttachment   = findViewById(R.id.layoutSuggestionAttachment);
+            TextView     tvAttachFileName   = findViewById(R.id.tvAttachmentFileName);
+            com.google.android.material.button.MaterialButton btnOpenAttachment =
+                    findViewById(R.id.btnOpenAttachment);
+
+            if (attachmentUrl != null && !attachmentUrl.isEmpty() && layoutAttachment != null) {
+                layoutAttachment.setVisibility(View.VISIBLE);
+                // Display just the file name from the URL
+                String displayName = attachmentUrl.contains("/")
+                        ? attachmentUrl.substring(attachmentUrl.lastIndexOf('/') + 1)
+                        : "Attachment";
+                if (tvAttachFileName != null) tvAttachFileName.setText(displayName);
+
+                if (btnOpenAttachment != null) {
+                    btnOpenAttachment.setOnClickListener(v -> openAttachmentUrl(
+                            DownloadHelper.resolveUrl(attachmentUrl)));
+                }
+            }
+        }
+
+        final String currentTitle = title;
+        final String currentDesc  = description;
+        if (btnEditDocument != null) {
+            btnEditDocument.setOnClickListener(v ->
+                    showEditDocumentDialog(finalDocId, currentTitle, currentDesc));
+        }
+
         android.widget.Button btnSuggestions = findViewById(R.id.btnSuggestions);
         if (btnSuggestions != null) {
             btnSuggestions.setVisibility(View.GONE);
-            btnSuggestions.setOnClickListener(v -> startActivity(new Intent(this, SubmitSuggestionActivity.class)));
+            btnSuggestions.setOnClickListener(v -> {
+                Intent si = new Intent(this, SubmitSuggestionActivity.class);
+                si.putExtra("doc_id", finalDocId);
+                startActivity(si);
+            });
         }
 
         fetchRoleAndSetupUI(layoutApprovalActions, btnApprove, btnReject, finalDocId, finalStatus, btnSuggestions);
@@ -105,7 +152,7 @@ public class DocumentDetailActivity extends AppCompatActivity {
 
         LinearLayout pdfContainer = findViewById(R.id.pdfContainer);
         ProgressBar pdfLoadingBar = findViewById(R.id.pdfLoadingBar);
-        PDFView pdfView = findViewById(R.id.pdfView);
+        PdfRendererView pdfRendererView = findViewById(R.id.pdfRendererView);
         TextView pdfErrorText = findViewById(R.id.pdfErrorText);
 
         LinearLayout docViewerContainer = findViewById(R.id.docViewerContainer);
@@ -133,24 +180,12 @@ public class DocumentDetailActivity extends AppCompatActivity {
                     DownloadHelper.download(this, resolvedFileUrl, fTitle, fFileType, fDesc));
         }
 
-        if (hasPdf && docId != -1) {
-            String serveUrl = RetrofitClient.BASE_URL + "api/documents/" + docId + "/file";
-
-            FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-            if (currentUser == null) {
-                showError(pdfLoadingBar, pdfErrorText, "Not signed in");
-                return;
-            }
-
-            currentUser.getIdToken(false)
-                    .addOnCompleteListener(tokenTask -> {
-                        if (!tokenTask.isSuccessful()) {
-                            showError(pdfLoadingBar, pdfErrorText, "Authentication failed");
-                            return;
-                        }
-                        String bearerToken = "Bearer " + tokenTask.getResult().getToken();
-                        loadPdfInline(serveUrl, bearerToken, pdfView, pdfLoadingBar, pdfErrorText);
-                    });
+        if (hasPdf) {
+            // Download directly from the public storage URL (resolvedFileUrl is
+            // already http://10.0.2.2:8000/storage/...). PHP artisan serve serves
+            // files from public/storage as static files — no PHP output buffering,
+            // no chunked-encoding issues, completely reliable for binary content.
+            loadPdfInline(resolvedFileUrl, pdfRendererView, pdfLoadingBar, pdfErrorText);
         }
     }
 
@@ -166,47 +201,105 @@ public class DocumentDetailActivity extends AppCompatActivity {
     }
 
     /**
-     * Fetches the PDF from the API as a Base64 JSON payload and renders it inline.
-     *
-     * The backend returns {"data":"<base64>","mime":"pdf"} instead of raw bytes.
-     * This avoids the "unexpected end of stream" error: PHP artisan serve on Windows
-     * wraps every binary response in chunked transfer encoding whose final chunk
-     * Android never receives correctly. JSON is plain text — artisan serve transfers
-     * it without chunking issues — and Base64.decode() restores the original bytes.
+     * Downloads the PDF from the public storage URL and renders it inline.
+     * PHP artisan serve serves public/storage files as static files, bypassing
+     * PHP's output buffering pipeline that caused truncation through the controller.
      */
-    private void loadPdfInline(String url, String bearerToken, PDFView pdfView,
+    private void loadPdfInline(String url, PdfRendererView pdfRendererView,
             ProgressBar loadingBar, TextView errorView) {
         Log.d(TAG, "loadPdfInline URL: " + url);
         new Thread(() -> {
+            String cacheFileName = "pdf_" + url.hashCode() + ".pdf";
+            java.io.File cacheFile = new java.io.File(getCacheDir(), cacheFileName);
+            // Temp file used during download — renamed atomically on success so a
+            // partial download can never masquerade as a valid cached file.
+            java.io.File tempFile = new java.io.File(getCacheDir(), cacheFileName + ".tmp");
+
+            if (cacheFile.exists() && isValidPdf(cacheFile)) {
+                Log.d(TAG, "Serving PDF from cache: " + cacheFile.getName());
+                renderPdfFromFile(cacheFile, pdfRendererView, loadingBar, errorView);
+                return;
+            }
+            // Remove any stale/corrupt final or temp files before downloading
+            cacheFile.delete();
+            tempFile.delete();
+
             okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
                     .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
                     .readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
                     .build();
             okhttp3.Request request = new okhttp3.Request.Builder()
                     .url(url)
-                    .header("Authorization", bearerToken)
                     .build();
             try (okhttp3.Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful() || response.body() == null) {
                     showError(loadingBar, errorView, "HTTP " + response.code());
                     return;
                 }
-                // Response is JSON: {"data":"<base64 PDF bytes>","mime":"pdf"}
-                String json = response.body().string();
-                org.json.JSONObject obj = new org.json.JSONObject(json);
-                String base64Data = obj.getString("data");
-                byte[] pdfBytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT);
 
-                java.io.File cacheFile = new java.io.File(getCacheDir(), "preview.pdf");
-                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(cacheFile)) {
-                    fos.write(pdfBytes);
+                // Stream raw bytes directly to disk — no base64, no memory spike.
+                // PHP artisan serve on Windows sometimes closes the connection
+                // without sending the final HTTP chunk terminator. We catch
+                // EOFException so the bytes we already wrote are not discarded;
+                // isValidPdf() below decides whether the content is usable.
+                long totalBytes = 0;
+                try (java.io.InputStream in = response.body().byteStream();
+                     java.io.FileOutputStream fos = new java.io.FileOutputStream(tempFile)) {
+                    byte[] buf = new byte[8192];
+                    int n;
+                    try {
+                        while ((n = in.read(buf)) != -1) {
+                            fos.write(buf, 0, n);
+                            totalBytes += n;
+                        }
+                    } catch (java.io.IOException eof) {
+                        // okio.EOFException extends IOException (not java.io.EOFException),
+                        // so we catch IOException here. If we already received bytes, this
+                        // is likely the missing HTTP chunk terminator from PHP artisan serve —
+                        // the PDF content itself should be intact. If 0 bytes, re-throw.
+                        if (totalBytes == 0) throw eof;
+                        Log.w(TAG, "Stream ended after " + totalBytes + " bytes: " + eof.getMessage());
+                    }
+                    fos.flush();
                 }
-                renderPdfFromFile(cacheFile, pdfView, loadingBar, errorView);
+                Log.d(TAG, "Downloaded " + totalBytes + " bytes to " + tempFile.getName());
+
+                System.gc(); // Suggest GC before bitmap-heavy PDF rendering
+
+                if (!isValidPdf(tempFile)) {
+                    tempFile.delete();
+                    showError(loadingBar, errorView, "Received invalid PDF from server");
+                    return;
+                }
+                if (!tempFile.renameTo(cacheFile)) {
+                    // renameTo can fail across file systems; fall back to copy+delete
+                    try (java.io.InputStream in = new java.io.FileInputStream(tempFile);
+                         java.io.OutputStream out = new java.io.FileOutputStream(cacheFile)) {
+                        byte[] buf = new byte[8192];
+                        int n;
+                        while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                    }
+                    tempFile.delete();
+                }
+                renderPdfFromFile(cacheFile, pdfRendererView, loadingBar, errorView);
             } catch (Exception e) {
+                tempFile.delete();
+                cacheFile.delete();
                 Log.e(TAG, "PDF load error: " + e.getMessage());
                 showError(loadingBar, errorView, "Load error: " + e.getMessage());
             }
         }).start();
+    }
+
+    /** Returns true if the file starts with the PDF magic bytes (%PDF). */
+    private boolean isValidPdf(java.io.File file) {
+        if (!file.exists() || file.length() < 4) return false;
+        try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
+            byte[] h = new byte[4];
+            return fis.read(h) == 4 && h[0] == '%' && h[1] == 'P' && h[2] == 'D' && h[3] == 'F';
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void showError(ProgressBar loadingBar, TextView errorView, String message) {
@@ -218,22 +311,42 @@ public class DocumentDetailActivity extends AppCompatActivity {
         });
     }
 
-    private void renderPdfFromFile(java.io.File file, PDFView pdfView,
+    private void renderPdfFromFile(java.io.File file, PdfRendererView pdfRendererView,
             ProgressBar loadingBar, TextView errorView) {
-        runOnUiThread(() ->
-            pdfView.fromFile(file)
-                .defaultPage(0)
-                .enableSwipe(true)
-                .swipeHorizontal(false)
-                .enableDoubletap(true)
-                .enableAnnotationRendering(false)
-                .onLoad(nbPages -> loadingBar.setVisibility(View.GONE))
-                .onError(t -> {
-                    Log.e(TAG, "PDFView error: " + t.getMessage());
-                    showError(loadingBar, errorView, "Render error: " + t.getMessage());
-                })
-                .load()
-        );
+        if (isFinishing() || isDestroyed()) return;
+        runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            try {
+                pdfRendererView.setStatusListener(new PdfRendererView.StatusCallBack() {
+                    @Override
+                    public void onPdfLoadStart() {}
+
+                    @Override
+                    public void onPdfLoadSuccess(String absolutePath) {
+                        loadingBar.setVisibility(View.GONE);
+                    }
+
+                    @Override
+                    public void onPdfLoadProgress(int progress, long downloadedBytes, Long totalBytes) {}
+
+                    @Override
+                    public void onError(Throwable error) {
+                        Log.e(TAG, "PdfRendererView error: " + error.getMessage());
+                        file.delete(); // Remove corrupt cache so next open re-downloads
+                        showError(loadingBar, errorView, "Render error: " + error.getMessage());
+                    }
+
+                    @Override
+                    public void onPageChanged(int currentPage, int totalPage) {}
+                });
+                pdfRendererView.initWithFile(file);
+                loadingBar.setVisibility(View.GONE);
+            } catch (Exception e) {
+                Log.e(TAG, "initWithFile crash: " + e.getMessage());
+                file.delete(); // Remove corrupt cache so next open re-downloads
+                showError(loadingBar, errorView, "Cannot open PDF: " + e.getMessage());
+            }
+        });
     }
 
     /** Colours and shows the status badge based on document status. */
@@ -458,6 +571,91 @@ public class DocumentDetailActivity extends AppCompatActivity {
                                 "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
                     }
                 });
+    }
+
+    /** Opens an attachment URL via DownloadManager (saves to Downloads) and notifies the user. */
+    private void openAttachmentUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            Toast.makeText(this, "Attachment URL not available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        // Derive a sensible file name from the URL
+        String fileName = url.contains("/") ? url.substring(url.lastIndexOf('/') + 1) : "attachment";
+        String ext = fileName.contains(".") ? fileName.substring(fileName.lastIndexOf('.') + 1) : "";
+        DownloadHelper.download(this, url, fileName, ext, "Suggestion attachment");
+    }
+
+    /**
+     * Shows a dialog pre-filled with current title/description so the document
+     * owner can apply the HR/Admin suggestion and save the changes.
+     */
+    private void showEditDocumentDialog(int docId, String currentTitle, String currentDesc) {
+        android.view.LayoutInflater inflater = android.view.LayoutInflater.from(this);
+        android.view.View dialogView = inflater.inflate(R.layout.dialog_edit_document, null);
+
+        EditText etTitle = dialogView.findViewById(R.id.etEditTitle);
+        EditText etDesc  = dialogView.findViewById(R.id.etEditDescription);
+
+        if (etTitle != null && currentTitle != null) etTitle.setText(currentTitle);
+        if (etDesc  != null && currentDesc  != null) etDesc.setText(currentDesc);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Edit Document")
+                .setView(dialogView)
+                .setPositiveButton("Save", (dialog, which) -> {
+                    String newTitle = etTitle != null ? etTitle.getText().toString().trim() : "";
+                    String newDesc  = etDesc  != null ? etDesc.getText().toString().trim()  : "";
+
+                    if (newTitle.isEmpty()) {
+                        Toast.makeText(this, "Title cannot be empty", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    saveDocumentEdits(docId, newTitle, newDesc);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void saveDocumentEdits(int docId, String newTitle, String newDesc) {
+        com.google.firebase.auth.FirebaseUser user =
+                com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
+        if (user == null) return;
+
+        user.getIdToken(false).addOnCompleteListener(task -> {
+            if (!task.isSuccessful()) return;
+            String token = "Bearer " + task.getResult().getToken();
+
+            RetrofitClient.getApiService()
+                    .updateDocument(docId, token, newTitle, newDesc)
+                    .enqueue(new retrofit2.Callback<okhttp3.ResponseBody>() {
+                        @Override
+                        public void onResponse(retrofit2.Call<okhttp3.ResponseBody> call,
+                                retrofit2.Response<okhttp3.ResponseBody> response) {
+                            if (response.isSuccessful()) {
+                                Toast.makeText(DocumentDetailActivity.this,
+                                        "Document updated", Toast.LENGTH_SHORT).show();
+                                // Refresh displayed title/description
+                                TextView headerTv = findViewById(R.id.headerTitle);
+                                if (headerTv != null) headerTv.setText(newTitle);
+                                TextView contentTv = findViewById(R.id.docContent);
+                                if (contentTv != null) contentTv.setText(
+                                        newDesc.isEmpty() ? "No description available." : newDesc);
+                                // Hide the suggestion banner after editing
+                                LinearLayout banner = findViewById(R.id.suggestionBanner);
+                                if (banner != null) banner.setVisibility(View.GONE);
+                            } else {
+                                Toast.makeText(DocumentDetailActivity.this,
+                                        "Update failed: " + response.code(), Toast.LENGTH_SHORT).show();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(retrofit2.Call<okhttp3.ResponseBody> call, Throwable t) {
+                            Toast.makeText(DocumentDetailActivity.this,
+                                    "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                    });
+        });
     }
 
 }

@@ -9,7 +9,7 @@ class Notification extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'message', 'type', 'action_url', 'document_id'];
+    protected $fillable = ['title', 'message', 'type', 'action_url', 'document_id', 'attachment_url'];
 
     public function document()
 {

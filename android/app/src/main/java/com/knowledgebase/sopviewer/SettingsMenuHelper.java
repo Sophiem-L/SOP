@@ -37,7 +37,7 @@ public class SettingsMenuHelper {
         });
 
         popupView.findViewById(R.id.menuOffline).setOnClickListener(v -> {
-            Toast.makeText(activity, "Offline access coming soon", Toast.LENGTH_SHORT).show();
+            activity.startActivity(new Intent(activity, OfflineAccessActivity.class));
             popupWindow.dismiss();
         });
 

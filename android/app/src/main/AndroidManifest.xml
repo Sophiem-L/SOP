@@ -86,6 +86,9 @@
         <activity
             android:name=".AllDocumentsActivity"
             android:exported="false" />
+        <activity
+            android:name=".OfflineAccessActivity"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

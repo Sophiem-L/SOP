@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Document;
 use App\Models\DocumentVersion;
 use App\Models\Category;
@@ -151,6 +152,14 @@ class DocumentController extends Controller
                     }
                 }
             }
+
+            // Log the create action
+            AuditLog::create([
+                'user_id'     => $userId,
+                'document_id' => $document->id,
+                'action'      => 'create',
+                'ip_address'  => $request->ip(),
+            ]);
 
             // Bust categories cache so document counts update immediately
             Cache::forget('categories_list');
@@ -368,15 +377,36 @@ class DocumentController extends Controller
             return response()->json(['message' => 'File not found on disk'], 404);
         }
 
-        $fileBytes = file_get_contents($fullPath);
-        if ($fileBytes === false) {
-            return response()->json(['message' => 'Cannot read file'], 500);
-        }
+        $mime = $version->file_type === 'pdf'
+            ? 'application/pdf'
+            : 'application/octet-stream';
 
-        return response()->json([
-            'data' => base64_encode($fileBytes),
-            'mime' => $version->file_type,
-        ]);
+        $size = filesize($fullPath);
+
+        // PHP artisan serve on Windows uses chunked transfer encoding for dynamic
+        // responses, and the final terminating chunk is sometimes never sent,
+        // causing Android OkHttp to throw "unexpected end of stream".
+        // Bypass Laravel's pipeline entirely, strip Transfer-Encoding, set an
+        // explicit Content-Length, and stream in small chunks with ob_flush+flush
+        // so every byte reaches the TCP socket before the connection closes.
+        while (ob_get_level() > 0) ob_end_clean();
+        header_remove('Transfer-Encoding');
+        header('Content-Type: '   . $mime);
+        header('Content-Length: ' . $size);
+        header('Cache-Control: no-store');
+        header('Connection: close');
+
+        $fp = fopen($fullPath, 'rb');
+        while (!feof($fp)) {
+            echo fread($fp, 8192);
+            ob_flush();
+            flush();
+        }
+        fclose($fp);
+        // Give the OS TCP stack a moment to drain the send buffer before
+        // the process exits, so the connection closes cleanly instead of RST.
+        usleep(50000); // 50 ms
+        exit(0);
     }
 
     public function toggleFavorite(Request $request, $id)
@@ -445,6 +475,93 @@ class DocumentController extends Controller
         return response()->json($documents);
     }
 
+    /**
+     * HR/Admin submits a suggestion for a document.
+     * Creates a "suggestion" notification for the document creator.
+     */
+    public function storeSuggestion(Request $request, $id)
+    {
+        $reviewer = $request->user();
+        if (!$this->isHrOrAdmin($reviewer)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'summary'    => 'required|string|max:200',
+            'comments'   => 'nullable|string|max:2000',
+            'attachment' => 'nullable|file|max:10240',
+        ]);
+
+        $document = Document::findOrFail($id);
+        $creator  = User::find($document->created_by);
+
+        // Store optional attachment file
+        $attachmentUrl = null;
+        if ($request->hasFile('attachment') && $request->file('attachment')->isValid()) {
+            $path = $request->file('attachment')->store('suggestion_attachments', 'public');
+            $attachmentUrl = asset('storage/' . $path);
+        }
+
+        $reviewerName = $reviewer->full_name ?? $reviewer->name ?? 'HR/Admin';
+        $message = $reviewerName . ' suggested: ' . $request->summary;
+        if ($request->filled('comments')) {
+            $message .= "\n" . $request->comments;
+        }
+
+        $notification = Notification::create([
+            'title'          => 'Suggestion on "' . $document->title . '"',
+            'message'        => $message,
+            'type'           => 'suggestion',
+            'document_id'    => $document->id,
+            'attachment_url' => $attachmentUrl,
+        ]);
+
+        // Notify the document creator (and fallback to all HR/Admin if creator is HR/Admin)
+        if ($creator && !$this->isHrOrAdmin($creator)) {
+            $notification->users()->attach([$creator->id], ['is_read' => false]);
+        } else {
+            // If creator is HR/Admin, notify all HR/Admin except the sender
+            $hrAdmins = User::whereHas('roles', function ($q) {
+                $q->whereIn('name', ['admin', 'hr']);
+            })->where('id', '!=', $reviewer->id)->pluck('id');
+            if ($hrAdmins->isNotEmpty()) {
+                $notification->users()->attach($hrAdmins, ['is_read' => false]);
+            }
+        }
+
+        return response()->json(['message' => 'Suggestion submitted'], 201);
+    }
+
+    /**
+     * Document creator updates their document's title/description based on a suggestion.
+     */
+    public function update(Request $request, $id)
+    {
+        $user     = $request->user();
+        $document = Document::findOrFail($id);
+
+        // Only the creator or HR/Admin may edit
+        if ($document->created_by !== $user->id && !$this->isHrOrAdmin($user)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'title'       => 'sometimes|required|string|max:100',
+            'description' => 'nullable|string',
+        ]);
+
+        $document->update($request->only(['title', 'description']));
+
+        AuditLog::create([
+            'user_id'     => $user->id,
+            'document_id' => $document->id,
+            'action'      => 'update',
+            'ip_address'  => $request->ip(),
+        ]);
+
+        return response()->json(['message' => 'Document updated', 'document' => $document]);
+    }
+
     public function approve(Document $document)
     {
         $document->update([
@@ -489,5 +606,44 @@ private function markNotificationAsRead($documentId)
             ->where('user_notifications.user_id', auth()->id())
             ->where('user_notifications.is_read', 0) // Only update if not already read
             ->update(['user_notifications.is_read' => 1]);
+    }
+
+    /**
+     * GET /api/audit-logs
+     * Returns all create/update actions across all users, newest first.
+     */
+    public function auditLogs(Request $request)
+    {
+        $logs = AuditLog::with(['user:id,name,full_name', 'document:id,title'])
+            ->whereIn('action', ['create', 'update'])
+            ->orderByDesc('created_at')
+            ->limit(100)
+            ->get()
+            ->map(function ($log) {
+                $userName = $log->user
+                    ? ($log->user->full_name ?? $log->user->name ?? 'Unknown')
+                    : 'Unknown';
+
+                // Get user role label
+                $userRole = 'Employee';
+                if ($log->user) {
+                    $roles = $log->user->roles()->pluck('name');
+                    if ($roles->contains('admin')) $userRole = 'Admin';
+                    elseif ($roles->contains('hr')) $userRole = 'HR';
+                }
+
+                $documentTitle = $log->document ? $log->document->title : 'Deleted Document';
+
+                return [
+                    'id'             => $log->id,
+                    'action'         => $log->action,
+                    'created_at'     => $log->created_at ? $log->created_at->format('Y-m-d H:i') : '',
+                    'user_name'      => $userName,
+                    'user_role'      => $userRole,
+                    'document_title' => $documentTitle,
+                ];
+            });
+
+        return response()->json($logs);
     }
 }

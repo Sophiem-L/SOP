@@ -54,6 +54,8 @@ public class HomeFragment extends Fragment {
     // Pagination dots
     private View dot1, dot2;
 
+    private String currentToken = "";
+
     private final Handler searchDebounceHandler = new Handler(Looper.getMainLooper());
     private Runnable searchDebounceRunnable;
     private static final long SEARCH_DEBOUNCE_MS = 400;
@@ -146,9 +148,9 @@ public class HomeFragment extends Fragment {
         SseManager.getInstance().start(user);
         user.getIdToken(false).addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
-                String token = "Bearer " + task.getResult().getToken();
-                loadRecentContent(token);
-                loadCategories(token);
+                currentToken = "Bearer " + task.getResult().getToken();
+                loadRecentContent(currentToken);
+                loadCategories(currentToken);
                 isDataLoaded = true;
             }
         });
@@ -276,7 +278,7 @@ public class HomeFragment extends Fragment {
                 String updatedAt = cat.getUpdatedAt();
                 String last = (updatedAt != null && updatedAt.length() >= 10) ? updatedAt.substring(0, 10) : "N/A";
                 folders.add(new FolderDoc(cat.getName(), cat.getDocumentsCount(),
-                        "Last edited: " + last, colors[i++ % colors.length]));
+                        "Last edited: " + last, colors[i++ % colors.length], cat.getId()));
             }
             updateFoldersAdapter();
         } catch (Exception e) {
@@ -289,7 +291,9 @@ public class HomeFragment extends Fragment {
         if (!isAdded())
             return;
         if (folderAdapter == null) {
-            folderAdapter = new FolderAdapter(folders, requireActivity());
+            folderAdapter = new FolderAdapter(folders, requireActivity(), currentToken);
+        } else {
+            folderAdapter.setToken(currentToken);
         }
         // Always set the adapter to the recycler
         recyclerFolders.setAdapter(folderAdapter);
