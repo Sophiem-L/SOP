@@ -38,6 +38,10 @@
         .badge {
             font-weight: 500;
         }
+        .top-bar-bg{
+            background-color: #fff;
+            width: 100%;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -127,9 +131,9 @@
         @endauth
 
         {{-- 2. MAIN CONTENT AREA --}}
-        <main class="flex-grow-1 {{ auth()->check() ? 'p-4 p-md-5' : 'guest-wrapper' }}" style="min-height: 100vh;">
+        <main class="flex-grow-1"  style="min-height: 100vh;">
             @if(!Route::is('login'))
-            <div class="d-flex justify-content-end align-items-center mb-4 no-print">
+             <div class="d-flex justify-content-end align-items-center mb-4 p-4 no-print top-bar-bg">
                 <a href="{{ route('notifications.page') }}" class="position-relative me-4 text-decoration-none">
                     <i class="bi bi-bell fs-4 text-muted"></i>
                     @php
@@ -188,8 +192,10 @@
                 </div>
             </div>
             @endif
-
-            @yield('content')
+            <div class="container-fluid px-5">
+                 @yield('content')
+            </div>
+           
         </main>
     </div>
 

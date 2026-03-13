@@ -6,7 +6,7 @@
         <h2 class="fw-bold">Create New Role</h2>
     </div>
 
-    <form id="roleForm" action="#" method="POST">
+    <form id="roleForm" action="{{ route('roles.store') }}" method="POST">
         @csrf
         <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px;">
             <div class="card-body p-4">
@@ -36,27 +36,35 @@
                             <th class="text-center">Create</th>
                             <th class="text-center">Edit</th>
                             <th class="text-center">Delete</th>
-                            <th class="text-center">Disable</th>
-                            <th class="text-center">Publish</th>
-                            <th class="text-center">Authorize</th>
-                            <th class="text-center">Export</th>
+                            <th class="text-center">Bookmark</th>
                         </tr>
                     </thead>
                     <tbody>
                         @php
-                            $modules = ['Dashboard', 'Promotion', 'Budget History', 'Link Shop', 'Shop', 'Report', 'Audit Logs', 'User Setting', 'User Role'];
+                            $modules = [
+                                'Dashboard' => ['view'],
+                                'Documents' => ['view', 'create', 'edit', 'delete', 'bookmark'],
+                                'Bookmarks' => ['view'],
+                                'Notifications' => ['view'],
+                                'Audit logs' => ['view'],
+                                'User Setting' => ['view', 'create', 'edit', 'delete'],
+                                'User Role' => ['view', 'create', 'edit', 'delete'],
+                            ];
+                            $allActions = ['view', 'create', 'edit', 'delete', 'bookmark'];
                         @endphp
 
-                        @foreach($modules as $module)
+                        @foreach($modules as $module => $allowedActions)
                         <tr>
                             <td class="ps-4 fw-semibold text-dark">{{ $module }}</td>
-                            @foreach(['view', 'create', 'edit', 'delete', 'disable', 'publish', 'authorize', 'export'] as $action)
+                            @foreach($allActions as $action)
                             <td class="text-center">
+                                @if(in_array($action, $allowedActions))
                                 <div class="form-check d-flex justify-content-center">
                                     <input class="form-check-input permission-checkbox" type="checkbox" 
                                            name="permissions[{{ strtolower(str_replace(' ', '_', $module)) }}][{{ $action }}]" 
                                            style="width: 20px; height: 20px; cursor: pointer;">
                                 </div>
+                                @endif
                             </td>
                             @endforeach
                         </tr>

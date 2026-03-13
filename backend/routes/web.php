@@ -36,8 +36,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/bookmark/toggle', [BookmarkController::class, 'toggle'])->name('bookmark.toggle');
 
     Route::get('/settings/users', [UserController::class, 'index'])->name('users.index');
+    Route::post('/settings/users/store', [UserController::class, 'store'])->name('users.store');
     Route::get('/settings/roles', [RoleController::class, 'index'])->name('roles.index');
     Route::get('/settings/roles/create', [RoleController::class, 'create'])->name('roles.create');
+    Route::post('/settings/roles/store', [RoleController::class, 'store'])->name('roles.store');
 
     // Profile routes
     Route::get('/profile', [WebProfileController::class, 'show'])->name('profile.show');
