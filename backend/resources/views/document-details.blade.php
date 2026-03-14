@@ -78,15 +78,29 @@
                         $isPdf = $latestVersion && $latestVersion->file_type === 'pdf';
                     @endphp
                     @if($isPdf)
-                        <div class="ratio ratio-16x9 border rounded shadow-sm" style="height: 600px;">
-                            <embed src="{{ $latestVersion->file_url }}" type="application/pdf" width="100%" height="100%">
+                        <div class="border rounded-3 shadow-sm overflow-hidden" style="height: 700px;">
+                            <iframe
+                                src="{{ route('documents.preview', $document->id) }}"
+                                width="100%"
+                                height="100%"
+                                style="border:none; display:block;"
+                                title="{{ $document->title }}">
+                                <div class="text-center p-4">
+                                    <p>Your browser cannot display PDFs inline.</p>
+                                    <a href="{{ route('documents.download', $document->id) }}" class="btn btn-primary">
+                                        <i class="bi bi-download me-1"></i> Download PDF
+                                    </a>
+                                </div>
+                            </iframe>
                         </div>
                     @else
-                        <div class="d-flex flex-column align-items-center justify-content-center border rounded bg-light p-5" style="height: 400px;">
+                        <div class="d-flex flex-column align-items-center justify-content-center border rounded-3 bg-light p-5" style="height: 400px;">
                             <i class="bi bi-file-earmark-word text-primary display-1"></i>
                             <h4 class="mt-3">Word Document Preview Unavailable</h4>
                             <p class="text-muted">Direct browser preview is only available for PDF files.</p>
-                            <a href="{{ route('documents.download', $document['id']) }}" class="btn btn-primary">Download to View</a>
+                            <a href="{{ route('documents.download', $document['id']) }}" class="btn btn-primary">
+                                <i class="bi bi-download me-1"></i> Download to View
+                            </a>
                         </div>
                     @endif
                 </div>

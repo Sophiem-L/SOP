@@ -117,4 +117,30 @@ public function download($id)
 
         return response()->download($fullPath);
     }
+
+// 6. Serve the PDF inline for browser preview (no forced download)
+public function preview($id)
+    {
+        $document = Document::with('versions')->findOrFail($id);
+        $version  = $document->versions->first();
+
+        if (!$version || !$version->file_url) {
+            abort(404, 'File not found');
+        }
+
+        $urlPath      = parse_url($version->file_url, PHP_URL_PATH);
+        $relativePath = ltrim(str_replace('/storage', '', $urlPath), '/');
+        $fullPath     = storage_path('app/public/' . $relativePath);
+
+        if (!file_exists($fullPath)) {
+            abort(404, 'File not found on disk');
+        }
+
+        $mime = $version->file_type === 'pdf' ? 'application/pdf' : 'application/octet-stream';
+
+        return response()->file($fullPath, [
+            'Content-Type'        => $mime,
+            'Content-Disposition' => 'inline; filename="' . basename($fullPath) . '"',
+        ]);
+    }
 }

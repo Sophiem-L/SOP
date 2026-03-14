@@ -94,12 +94,22 @@
                             $unreadCount = auth()->user()->notifications()->wherePivot('is_read', false)->count();
                         @endphp
                         @if($unreadCount > 0)
-                            <span class="badge rounded-pill bg-danger shadow-sm">
+                            <span id="sidebar-notif-badge" class="badge rounded-pill bg-danger shadow-sm">
                                 {{ $unreadCount > 9 ? '9+' : $unreadCount }}
                             </span>
                         @endif
                     </a>
                 </li>
+
+                {{-- Audit Log: visible to admin and hr only --}}
+                @if(auth()->user()->hasRole('admin') || auth()->user()->hasRole('hr'))
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->is('audit-log*') ? 'active bg-primary text-white' : 'text-dark' }} rounded-3 p-3"
+                       href="{{ route('audit-log.index') }}">
+                        <i class="bi bi-journal-text me-2"></i> Audit Log
+                    </a>
+                </li>
+                @endif
 
                 {{-- Admin Only Settings --}}
                 @if(auth()->user()->hasRole('admin'))

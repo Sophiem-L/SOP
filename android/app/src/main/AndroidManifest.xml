@@ -49,6 +49,19 @@
         <activity
             android:name=".LoginActivity"
             android:exported="false" />
+
+        <!-- Catches the sopviewer://auth?token=... deep link from backend Google OAuth -->
+        <activity
+            android:name=".AuthCallbackActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sopviewer" android:host="auth" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".CreateDocumentActivity"
             android:exported="false"

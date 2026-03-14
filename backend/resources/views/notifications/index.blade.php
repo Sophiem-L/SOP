@@ -58,24 +58,46 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const listContainer = document.getElementById('notification-list');
-    const loader = document.getElementById('loader');
-    const template = document.getElementById('notification-card-template');
+    const loader        = document.getElementById('loader');
+    const template      = document.getElementById('notification-card-template');
+    const CSRF          = '{{ csrf_token() }}';
 
+    // ── Badge helpers ────────────────────────────────────────────────
+    function refreshBadges() {
+        fetch('/notifications-count', {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(({ unread }) => {
+            // Sidebar badge
+            const sidebarBadge = document.getElementById('sidebar-notif-badge');
+            // Top-bar bell badge
+            const topBadge = document.getElementById('nav-unread-badge');
+
+            if (unread > 0) {
+                const label = unread > 9 ? '9+' : unread;
+                if (sidebarBadge) sidebarBadge.textContent = label;
+                if (topBadge)     topBadge.textContent     = unread > 99 ? '99+' : unread;
+            } else {
+                if (sidebarBadge) sidebarBadge.remove();
+                if (topBadge)     topBadge.remove();
+            }
+        })
+        .catch(() => {});
+    }
+
+    // ── Load notifications list ──────────────────────────────────────
     function loadNotifications() {
-        // Use relative path to ensure it works on localhost and production
-        fetch('/notifications-data', { // Updated path
-        headers: {
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
+        fetch('/notifications-data', {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        })
         .then(response => {
             if (!response.ok) throw new Error('Network response was not ok');
             return response.json();
         })
         .then(data => {
             if (loader) loader.remove();
-            listContainer.innerHTML = ''; // Clear container
+            listContainer.innerHTML = '';
 
             if (data.length === 0) {
                 listContainer.innerHTML = `
@@ -86,51 +108,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            const userIsAdmin = {{ auth()->user()->hasRole('admin') ? 'true' : 'false' }};
+            const userIsHr    = {{ auth()->user()->hasRole('hr')    ? 'true' : 'false' }};
+
             data.forEach(notif => {
                 const clone = template.content.cloneNode(true);
-                const card = clone.querySelector('.notification-card');
-                
-                // 1. Fill Text Content
-                clone.querySelector('.title-text').textContent = notif.title;
-                clone.querySelector('.message-text').textContent = notif.message;
-                clone.querySelector('.time-text').textContent = new Date(notif.created_at).toLocaleString();
+                const card  = clone.querySelector('.notification-card');
 
-                // 2. Click Logic: Redirect to Document Detail
-                if (notif.document_id) {
-                    card.addEventListener('click', (e) => {
-                        // Prevent redirection if clicking a button inside the card
-                        if (!e.target.closest('button')) {
-                            // Optional: Mark as read automatically when clicking
-                            markAsRead(notif.id); 
-                            window.location.href = `/documents/${notif.document_id}`;
-                        }
-                    });
+                // Unread styling
+                if (notif.pivot && !notif.pivot.is_read) {
+                    card.style.borderLeft = '4px solid #0d6efd';
+                    card.style.backgroundColor = '#f0f6ff';
                 }
 
-                // 3. Admin Action Buttons Condition
-                const userIsAdmin = {{ auth()->user()->hasRole('admin') ? 'true' : 'false' }};
-                const userIsHr = {{ auth()->user()->hasRole('hr') ? 'true' : 'false' }};
-                const isPendingReview = notif.document && (notif.document.status === 'pending' || notif.document.status === 0 || notif.document.status === '0');
+                clone.querySelector('.title-text').textContent   = notif.title;
+                clone.querySelector('.message-text').textContent = notif.message;
+                clone.querySelector('.time-text').textContent    = new Date(notif.created_at).toLocaleString();
 
-                // Debug: Log the values to check condition
-                console.log('Notification:', notif.title, {
-                    userIsAdmin, userIsHr, isPendingReview,
-                    documentId: notif.document_id,
-                    document: notif.document,
-                    canApprove: (userIsAdmin || userIsHr) && isPendingReview
+                // Click: mark as read then navigate
+                card.addEventListener('click', (e) => {
+                    if (!e.target.closest('button')) {
+                        markAsRead(notif.id, notif.document_id);
+                    }
                 });
 
-                // Show buttons for admin/HR if it's a document notification
+                // Approve / Reject buttons for admin & HR
+                const isPendingReview = notif.document &&
+                    (notif.document.status === 'pending' || notif.document.status === 0 || notif.document.status === '0');
+
                 if ((userIsAdmin || userIsHr) && notif.document_id && isPendingReview) {
                     const actionButtons = clone.querySelector('.action-buttons');
-                    const approveBtn = actionButtons.querySelector('button:first-child');
-                    const rejectBtn = actionButtons.querySelector('button:last-child');
-                    
-                    approveBtn.setAttribute('onclick', `event.stopPropagation(); changeStatus(${notif.document_id}, 2)`);
-                    rejectBtn.setAttribute('onclick', `event.stopPropagation(); changeStatus(${notif.document_id}, 3)`);
-                    
+                    actionButtons.querySelector('button:first-child')
+                        .setAttribute('onclick', `event.stopPropagation(); changeStatus(${notif.document_id}, 2)`);
+                    actionButtons.querySelector('button:last-child')
+                        .setAttribute('onclick', `event.stopPropagation(); changeStatus(${notif.document_id}, 3)`);
                     actionButtons.classList.remove('d-none');
-                    console.log('Action buttons shown for:', notif.title);
                 }
 
                 listContainer.appendChild(clone);
@@ -143,35 +155,52 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Function to mark single notification as read
-    function markAsRead(id) {
-        fetch(`/api/notifications/${id}/mark-as-read`, {
+    // ── Mark single as read ──────────────────────────────────────────
+    function markAsRead(id, documentId) {
+        fetch(`/notifications/${id}/mark-as-read`, {
             method: 'PATCH',
             headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'X-CSRF-TOKEN': CSRF,
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
             }
-        }).then(() => loadNotifications());
+        })
+        .then(() => {
+            refreshBadges();
+            if (documentId) {
+                window.location.href = `/documents/${documentId}`;
+            } else {
+                loadNotifications();
+            }
+        });
     }
 
-    // Mark All Read Handler
+    // ── Mark all as read ─────────────────────────────────────────────
     document.getElementById('markAllForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        fetch('/api/notifications/mark-all-read', {
+        fetch('/notifications/mark-all-read', {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'X-CSRF-TOKEN': CSRF,
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
             }
-        }).then(() => {
+        })
+        .then(() => {
             loadNotifications();
-            // Update sidebar badge if present
-            const sidebarBadge = document.querySelector('.nav-link .badge');
-            if (sidebarBadge) sidebarBadge.remove();
+            refreshBadges();
         });
     });
+
+    // Auto-mark all as read when the page opens, then refresh badges
+    fetch('/notifications/mark-all-read', {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': CSRF,
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    }).then(() => refreshBadges());
 
     loadNotifications();
 });

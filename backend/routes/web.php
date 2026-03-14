@@ -10,6 +10,8 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\WebProfileController;
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\SocialAuthController;
 
 use App\Models\Category;
 use App\Models\Document;
@@ -17,6 +19,10 @@ use App\Models\User;
 
 Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [AuthController::class, 'webLogin']);
+
+// Google OAuth — no auth middleware, open to all
+Route::get('/auth/google', [SocialAuthController::class, 'redirectToGoogle'])->name('auth.google');
+Route::get('/auth/google/callback', [SocialAuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/', [DashboardController::class, 'index']);
@@ -29,6 +35,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/documents/store', [DocumentController::class, 'store'])->name('documents.store');
     Route::get('/category/{category}', [DocumentByCategoryController::class, 'showByCategory'])->name('category.view');
     Route::get('/documents/{id}/download', [DocumentByCategoryController::class, 'download'])->name('documents.download');
+    Route::get('/documents/{id}/preview', [DocumentByCategoryController::class, 'preview'])->name('documents.preview');
     Route::get('/documents/{id}', [DocumentByCategoryController::class, 'show'])->name('documents.show');
     Route::post('/documents/{document}/approve', [DocumentController::class, 'approve'])->name('documents.approve');
     Route::post('/documents/{document}/reject', [DocumentController::class, 'reject'])->name('documents.reject');
@@ -37,6 +44,8 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/settings/users', [UserController::class, 'index'])->name('users.index');
     Route::post('/settings/users/store', [UserController::class, 'store'])->name('users.store');
+    Route::put('/settings/users/{user}', [UserController::class, 'update'])->name('users.update');
+    Route::delete('/settings/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     Route::get('/settings/roles', [RoleController::class, 'index'])->name('roles.index');
     Route::get('/settings/roles/create', [RoleController::class, 'create'])->name('roles.create');
     Route::post('/settings/roles/store', [RoleController::class, 'store'])->name('roles.store');
@@ -55,6 +64,10 @@ Route::middleware(['auth'])->group(function () {
         return view('notifications.index');
     })->name('notifications.page');
 
+    Route::get('/audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
+    Route::get('/audit-log-data', [AuditLogController::class, 'data'])->name('audit-log.data');
+
+    Route::get('/notifications-count', [NotificationController::class, 'webUnreadCount'])->name('notifications.count');
     Route::get('/notifications-data', [NotificationController::class, 'getNotificationsData'])->name('notifications.data');
     Route::post('/documents/{id}/update-status', [NotificationController::class, 'updateStatus']);
     Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);

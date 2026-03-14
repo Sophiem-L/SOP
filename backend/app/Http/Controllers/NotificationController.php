@@ -202,6 +202,12 @@ class NotificationController extends Controller
         }
     }
 
+public function webUnreadCount()
+    {
+        $count = auth()->user()->notifications()->wherePivot('is_read', false)->count();
+        return response()->json(['unread' => $count]);
+    }
+
 public function getNotificationsData()
     {
         // Deep eager loading: notification -> document -> creator (user) -> roles

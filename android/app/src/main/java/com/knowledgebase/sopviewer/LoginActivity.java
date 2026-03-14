@@ -2,12 +2,16 @@ package com.knowledgebase.sopviewer;
 
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
+
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.browser.customtabs.CustomTabsIntent;
+
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
@@ -18,9 +22,12 @@ import retrofit2.Response;
 public class LoginActivity extends AppCompatActivity {
 
     private EditText emailInput, passwordInput;
-    private Button signInButton;
+    private Button signInButton, ssoButton;
     private FirebaseAuth mAuth;
     private ProgressDialog progressDialog;
+
+    // Backend URL for the Google OAuth start point
+    private static final String GOOGLE_AUTH_URL = RetrofitClient.BASE_URL + "auth/google";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,89 +36,90 @@ public class LoginActivity extends AppCompatActivity {
 
         mAuth = FirebaseAuth.getInstance();
 
-        emailInput = findViewById(R.id.emailInput);
+        emailInput    = findViewById(R.id.emailInput);
         passwordInput = findViewById(R.id.passwordInput);
-        signInButton = findViewById(R.id.signInButton);
+        signInButton  = findViewById(R.id.signInButton);
+        ssoButton     = findViewById(R.id.ssoButton);
 
-        signInButton.setOnClickListener(v -> loginUser());
+        signInButton.setOnClickListener(v -> loginWithEmail());
+        ssoButton.setOnClickListener(v -> loginWithGoogle());
 
-        // Check if user is already logged in
+        // Auto-navigate if already signed in
         if (mAuth.getCurrentUser() != null) {
-            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            startActivity(intent);
-            finish();
+            navigateToMain();
         }
     }
 
-    private void loginUser() {
-        String email = emailInput.getText().toString().trim();
+    // ────────────────────────────────────────────────────────────────────
+    // Email / Password login
+    // ────────────────────────────────────────────────────────────────────
+    private void loginWithEmail() {
+        String email    = emailInput.getText().toString().trim();
         String password = passwordInput.getText().toString().trim();
 
         if (TextUtils.isEmpty(email)) {
             emailInput.setError("Email is required");
             return;
         }
-
         if (TextUtils.isEmpty(password)) {
             passwordInput.setError("Password is required");
             return;
         }
 
-        // Show loading dialog
-        progressDialog = new ProgressDialog(this);
-        progressDialog.setMessage("Signing in...");
-        progressDialog.setCancelable(false);
-        progressDialog.show();
+        showProgress("Signing in…");
 
-        // 1. Login with Firebase
         mAuth.signInWithEmailAndPassword(email, password)
                 .addOnCompleteListener(this, task -> {
                     if (task.isSuccessful()) {
                         FirebaseUser user = mAuth.getCurrentUser();
                         if (user != null) {
-                            // 2. Get a fresh ID token so backend can verify and sync/create user
                             user.getIdToken(true).addOnCompleteListener(tokenTask -> {
                                 if (tokenTask.isSuccessful()) {
-                                    String idToken = tokenTask.getResult().getToken();
-                                    syncWithBackend(idToken);
+                                    syncWithBackend(tokenTask.getResult().getToken());
                                 } else {
                                     dismissProgressDialog();
-                                    Toast.makeText(LoginActivity.this, "Failed to get ID Token", Toast.LENGTH_SHORT)
-                                            .show();
+                                    Toast.makeText(this, "Failed to get ID token",
+                                            Toast.LENGTH_SHORT).show();
                                 }
                             });
                         }
                     } else {
                         dismissProgressDialog();
-                        Toast.makeText(LoginActivity.this, "Authentication Failed: " + task.getException().getMessage(),
-                                Toast.LENGTH_SHORT).show();
+                        String msg = task.getException() != null
+                                ? task.getException().getMessage()
+                                : "Authentication failed";
+                        Toast.makeText(this, "Sign-in failed: " + msg, Toast.LENGTH_LONG).show();
                     }
                 });
     }
 
-    private void dismissProgressDialog() {
-        if (progressDialog != null && progressDialog.isShowing()) {
-            progressDialog.dismiss();
-        }
+    // ────────────────────────────────────────────────────────────────────
+    // Google SSO — opens the backend's Google OAuth page in a Chrome Custom Tab.
+    // The backend handles all Google OAuth, then redirects back via deep link
+    // sopviewer://auth?token=... which is caught by AuthCallbackActivity.
+    // ────────────────────────────────────────────────────────────────────
+    private void loginWithGoogle() {
+        CustomTabsIntent customTab = new CustomTabsIntent.Builder()
+                .setShowTitle(true)
+                .build();
+        customTab.launchUrl(this, Uri.parse(GOOGLE_AUTH_URL));
     }
 
-    private void syncWithBackend(String token) {
+    // ────────────────────────────────────────────────────────────────────
+    // Shared backend sync — called after Firebase sign-in (email flow)
+    // ────────────────────────────────────────────────────────────────────
+    void syncWithBackend(String token) {
         String bearerToken = "Bearer " + token;
         RetrofitClient.getApiService().login(bearerToken).enqueue(new Callback<LoginResponse>() {
             @Override
             public void onResponse(Call<LoginResponse> call, Response<LoginResponse> response) {
                 dismissProgressDialog();
                 if (response.isSuccessful() && response.body() != null) {
-                    // Successfully synced with backend
-                    Toast.makeText(LoginActivity.this, "Signed in successfully", Toast.LENGTH_SHORT).show();
-
-                    // Navigate to MainActivity and clear back stack
-                    Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                    startActivity(intent);
-                    finish();
+                    Toast.makeText(LoginActivity.this, "Signed in successfully",
+                            Toast.LENGTH_SHORT).show();
+                    navigateToMain();
                 } else {
+                    mAuth.signOut();
                     String msg = "Backend sync failed: " + response.code();
                     try {
                         if (response.errorBody() != null) {
@@ -131,8 +139,35 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<LoginResponse> call, Throwable t) {
                 dismissProgressDialog();
-                Toast.makeText(LoginActivity.this, "Network Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                mAuth.signOut();
+                Toast.makeText(LoginActivity.this,
+                        "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ────────────────────────────────────────────────────────────────────
+    void navigateToMain() {
+        Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
+    }
+
+    private void showProgress(String message) {
+        if (progressDialog == null) {
+            progressDialog = new ProgressDialog(this);
+            progressDialog.setCancelable(false);
+        }
+        progressDialog.setMessage(message);
+        if (!progressDialog.isShowing()) progressDialog.show();
+    }
+
+    private void dismissProgressDialog() {
+        if (progressDialog != null && progressDialog.isShowing()) {
+            progressDialog.dismiss();
+        }
     }
 }

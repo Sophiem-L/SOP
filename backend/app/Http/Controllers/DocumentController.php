@@ -118,11 +118,11 @@ class DocumentController extends Controller
             $fileUrl = asset('storage/' . $path);
 
             DocumentVersion::create([
-                'document_id' => $document->id,
-                'version_number' => '1.0.0',
-                'file_url' => $fileUrl,
-                'file_type' => $request->type,
-                'uploaded_by' => $userId,
+                'document_id'    => $document->id,
+                'version_number' => $request->input('version_number', '1.0.0'),
+                'file_url'       => $fileUrl,
+                'file_type'      => $request->type,
+                'uploaded_by'    => $userId,
             ]);
 
             $notification = \App\Models\Notification::create([
